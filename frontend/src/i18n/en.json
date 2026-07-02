@@ -1,0 +1,19 @@
+{
+  "appName": "DocuEngine",
+  "login": { "title": "Sign in", "email": "Email", "password": "Password", "submit": "Sign in", "error": "Invalid email or password" },
+  "nav": { "documents": "Documents", "corrections": "Corrections", "users": "Users", "devices": "Scanner devices", "training": "Training", "companies": "Companies", "stats": "Stats", "logout": "Sign out" },
+  "documents": {
+    "title": "Documents", "upload": "Upload", "filename": "File name", "status": "Status", "pages": "Pages", "date": "Uploaded", "empty": "No documents yet", "search": "Search by file name",
+    "statusValues": { "uploaded": "Uploaded", "queued": "Queued", "processing": "Processing", "completed": "Completed", "failed": "Failed", "partially_failed": "Partially failed" }
+  },
+  "detail": { "originalImage": "Original image", "markdown": "Markdown result", "download": "Download", "reprocess": "Reprocess", "edit": "Correct", "confidence": "Confidence", "progress": "{{done}} / {{total}} pages processed" },
+  "editor": { "title": "Correct OCR result", "save": "Save", "submit": "Submit correction", "preview": "Preview", "saved": "Saved", "submitted": "Correction submitted. It will be used as training data." },
+  "corrections": { "title": "Corrections", "approve": "Approve", "reject": "Reject", "status": { "draft": "Draft", "submitted": "Pending approval", "approved": "Approved", "rejected": "Rejected", "used_in_training": "Used in training" } },
+  "admin": {
+    "users": { "title": "Users", "add": "Add user", "name": "Name", "email": "Email", "role": "Role", "status": "Status", "roles": { "user": "User", "company_admin": "Admin" } },
+    "devices": { "title": "Scanner devices", "add": "Register device", "name": "Device name", "lastSeen": "Last seen", "tokenNote": "This token is shown only once. Configure it in the watcher app." },
+    "companies": { "title": "Companies", "add": "Add company", "name": "Company name", "slug": "Slug", "status": "Status", "addAdmin": "Issue admin login" },
+    "training": { "title": "Training runs", "trigger": "Start training", "status": "Status", "started": "Started", "finished": "Finished", "activate": "Activate", "rollback": "Roll back" }
+  },
+  "common": { "loading": "Loading...", "cancel": "Cancel", "create": "Create", "delete": "Delete", "language": "日本語" }
+}

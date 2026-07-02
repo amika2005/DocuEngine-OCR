@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+
+body {
+  font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', Meiryo,
+    system-ui, sans-serif;
+}
+
+.markdown-body h1 { @apply text-2xl font-bold mt-4 mb-2; }
+.markdown-body h2 { @apply text-xl font-bold mt-3 mb-2; }
+.markdown-body p { @apply my-2 leading-relaxed; }
+.markdown-body table { @apply border-collapse my-3 w-full text-sm; }
+.markdown-body th, .markdown-body td { @apply border border-slate-300 px-2 py-1; }
+.markdown-body th { @apply bg-slate-100; }

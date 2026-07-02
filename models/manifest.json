@@ -1,0 +1,9 @@
+{
+  "comment": "Model weights are never committed to git. scripts/fetch_models.py downloads them (on an internet-connected build machine) and rewrites this manifest with real sha256 digests before bundle.sh runs.",
+  "models": [
+    { "name": "PaddleOCR-VL-0.9B", "path": "paddleocr-vl", "sha256": "TO_BE_FILLED_BY_FETCH_SCRIPT", "license": "Apache-2.0", "role": "primary document parsing (layout + recognition, JA/EN, tables, handwriting)" },
+    { "name": "PP-DocLayoutV2", "path": "pp-doclayoutv2", "sha256": "TO_BE_FILLED_BY_FETCH_SCRIPT", "license": "Apache-2.0", "role": "page layout detection" },
+    { "name": "PP-OCRv5-server", "path": "pp-ocrv5", "sha256": "TO_BE_FILLED_BY_FETCH_SCRIPT", "license": "Apache-2.0", "role": "CPU fallback OCR + fine-tune target" },
+    { "name": "PP-LCNet-doc-orientation", "path": "doc-orientation", "sha256": "TO_BE_FILLED_BY_FETCH_SCRIPT", "license": "Apache-2.0", "role": "page orientation classifier" }
+  ]
+}

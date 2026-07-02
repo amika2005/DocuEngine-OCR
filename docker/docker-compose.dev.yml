@@ -1,0 +1,22 @@
+# Development infra only — run api/worker/frontend on the host for hot reload.
+name: docuengine-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: docuengine
+      POSTGRES_USER: docuengine
+      POSTGRES_PASSWORD: docuengine-dev-password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata-dev:

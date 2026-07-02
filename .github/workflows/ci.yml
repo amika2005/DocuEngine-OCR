@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          uv sync --extra dev
+          uv run pytest -q
+      - name: Trainer tests
+        working-directory: trainer
+        run: |
+          uv sync --extra dev
+          uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Frontend build (includes typecheck)
+        working-directory: frontend
+        run: |
+          npm ci || npm install
+          npm run build
+
+  watcher:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Watcher typecheck
+        working-directory: watcher-app
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: |
+          npm install
+          npm run typecheck

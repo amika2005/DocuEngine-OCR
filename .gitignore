@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+dist/
+dist-electron/
+release/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+*.pem
+*.key
+*.crt
+
+# Data & models (shipped via offline bundle, never in git)
+/models/*
+!/models/manifest.json
+!/models/README.md
+/data/
+
+# Alembic runtime
+backend/alembic/versions/__pycache__/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Build artifacts
+docuengine-bundle-*.tar.gz
+*.log

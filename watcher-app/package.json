@@ -1,0 +1,24 @@
+{
+  "name": "docuengine-watcher",
+  "productName": "DocuEngine Watcher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Watches the scanner output folder and uploads new documents to the DocuEngine server.",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.0",
+    "typescript": "^5.5.4"
+  }
+}

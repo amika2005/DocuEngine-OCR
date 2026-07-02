@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>DocuEngine Watcher</title>
+  <style>
+    body { font-family: 'Yu Gothic UI', Meiryo, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
+    header { background: #0f172a; color: #fff; padding: 10px 16px; font-weight: bold; }
+    main { padding: 16px; }
+    label { display: block; font-size: 12px; color: #475569; margin: 10px 0 2px; }
+    input[type="text"], input[type="password"] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .row { display: flex; gap: 8px; align-items: end; }
+    .row > div { flex: 1; }
+    button { margin-top: 12px; padding: 6px 16px; border: 0; border-radius: 4px; background: #0f172a; color: #fff; cursor: pointer; }
+    button.secondary { background: #e2e8f0; color: #0f172a; }
+    #status { margin-top: 8px; font-size: 13px; }
+    .ok { color: #16a34a; } .ng { color: #dc2626; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+    th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
+    .state-done { color: #16a34a; } .state-failed { color: #dc2626; }
+    .state-uploading { color: #2563eb; } .state-pending { color: #b45309; }
+    .state-duplicate { color: #64748b; }
+  </style>
+</head>
+<body>
+  <header>DocuEngine Watcher</header>
+  <main>
+    <label>サーバー URL</label>
+    <input type="text" id="serverUrl" placeholder="https://192.168.1.10" />
+    <label>デバイストークン</label>
+    <input type="password" id="deviceToken" placeholder="dedev_..." />
+    <div class="row">
+      <div>
+        <label>監視フォルダ（スキャナー出力先）</label>
+        <input type="text" id="watchFolder" readonly />
+      </div>
+      <button class="secondary" id="pickFolder" type="button">選択...</button>
+    </div>
+    <label><input type="checkbox" id="moveUploaded" checked /> アップロード後 uploaded/ フォルダへ移動</label>
+    <button id="save">保存して接続テスト</button>
+    <div id="status"></div>
+    <table>
+      <thead><tr><th>ファイル</th><th>状態</th><th>更新</th></tr></thead>
+      <tbody id="queue"></tbody>
+    </table>
+  </main>
+  <script src="./renderer.js"></script>
+</body>
+</html>

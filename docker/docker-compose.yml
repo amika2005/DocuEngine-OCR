@@ -1,0 +1,159 @@
+# DocuEngine production stack — fully offline, on-premise.
+# GPU profile is the default; use --profile cpu-only on GPU-less servers.
+name: docuengine
+
+x-backend-env: &backend-env
+  DOCUENGINE_ENV: production
+  SECRET_KEY: ${SECRET_KEY:?set in .env}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-docuengine}
+  POSTGRES_USER: ${POSTGRES_USER:-docuengine}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+  REDIS_URL: redis://redis:6379/0
+  DATA_DIR: /data
+  MODELS_DIR: /opt/docuengine/models
+  OCR_ENGINE: ${OCR_ENGINE:-paddleocr-vl}
+  SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?set in .env}
+  SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?set in .env}
+  TRAINING_ENABLED: ${TRAINING_ENABLED:-false}
+  # Air-gap hardening: no library may download models or phone home.
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  PADDLE_PDX_MODEL_SOURCE: local
+  NO_PROXY: "*"
+
+services:
+  frontend:
+    image: docuengine/frontend:${DOCUENGINE_VERSION:-latest}
+    build: { context: .., dockerfile: docker/frontend.Dockerfile }
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ${TLS_DIR:-./tls}:/etc/nginx/tls:ro
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+
+  api:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-latest}
+    build: { context: .., dockerfile: docker/api.Dockerfile }
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    environment: *backend-env
+    volumes:
+      - docuengine-data:/data
+      - ${MODELS_HOST_DIR:-/opt/docuengine/models}:/opt/docuengine/models:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  worker-gpu:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-latest}
+    command: celery -A app.tasks.celery_app worker -Q ocr_gpu -c 1 --prefetch-multiplier=1 --loglevel=info -n worker-gpu@%h
+    environment: *backend-env
+    volumes:
+      - docuengine-data:/data
+      - ${MODELS_HOST_DIR:-/opt/docuengine/models}:/opt/docuengine/models:ro
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # GPU-less installs: swap worker-gpu for this PP-OCRv5 CPU worker.
+  worker-cpu-ocr:
+    profiles: [cpu-only]
+    image: docuengine/backend:${DOCUENGINE_VERSION:-latest}
+    command: celery -A app.tasks.celery_app worker -Q ocr_gpu -c 1 --prefetch-multiplier=1 --loglevel=info -n worker-cpu-ocr@%h
+    environment:
+      <<: *backend-env
+      OCR_ENGINE: ppocrv5-cpu
+    volumes:
+      - docuengine-data:/data
+      - ${MODELS_HOST_DIR:-/opt/docuengine/models}:/opt/docuengine/models:ro
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  worker-cpu:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-latest}
+    command: celery -A app.tasks.celery_app worker -Q cpu -c 2 --loglevel=info -n worker-cpu@%h
+    environment: *backend-env
+    volumes:
+      - docuengine-data:/data
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  beat:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-latest}
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    environment: *backend-env
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  trainer:
+    profiles: [trainer]
+    image: docuengine/trainer:${DOCUENGINE_VERSION:-latest}
+    build: { context: .., dockerfile: docker/trainer.Dockerfile }
+    command: celery -A trainer.celery_app worker -Q training -c 1 --loglevel=info -n trainer@%h
+    environment: *backend-env
+    volumes:
+      - docuengine-data:/data
+      - ${MODELS_HOST_DIR:-/opt/docuengine/models}:/opt/docuengine/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-docuengine}
+      POSTGRES_USER: ${POSTGRES_USER:-docuengine}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  docuengine-data:

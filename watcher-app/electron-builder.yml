@@ -1,0 +1,16 @@
+appId: jp.co.sonasu.docuengine.watcher
+productName: DocuEngine Watcher
+directories:
+  output: release
+files:
+  - dist/**
+  - src/renderer/**
+win:
+  target:
+    - nsis
+    - portable
+nsis:
+  oneClick: true
+  perMachine: false
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
