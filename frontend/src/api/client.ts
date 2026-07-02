@@ -69,3 +69,26 @@ export async function api<T = unknown>(
   const contentType = res.headers.get('content-type') ?? '';
   return (contentType.includes('application/json') ? res.json() : res.text()) as Promise<T>;
 }
+
+/** Fetches a protected binary (page image, thumbnail, download) with the JWT
+ *  and returns an object URL — plain <img src> can't send Authorization. */
+export async function fetchBlobUrl(path: string, retried = false): Promise<string> {
+  const headers = new Headers();
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+  const res = await fetch(`${BASE}${path}`, { headers });
+  if (res.status === 401 && !retried && (await tryRefresh())) {
+    return fetchBlobUrl(path, true);
+  }
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return URL.createObjectURL(await res.blob());
+}
+
+/** Downloads a protected file to disk via a temporary object URL. */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const url = await fetchBlobUrl(path);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}

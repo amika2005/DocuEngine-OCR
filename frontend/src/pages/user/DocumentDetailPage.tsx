@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api } from '../../api/client';
+import { api, downloadFile } from '../../api/client';
 import type { Document, Page } from '../../api/types';
 import { useEvents } from '../../api/useEvents';
 import StatusBadge from '../../components/StatusBadge';
@@ -70,12 +70,17 @@ export default function DocumentDetailPage() {
             </Link>
           )}
           {markdown != null && (
-            <a
-              href={`/api/v1/documents/${doc.id}/download`}
+            <button
+              onClick={() =>
+                downloadFile(
+                  `/documents/${doc.id}/download`,
+                  `${doc.original_filename.replace(/\.[^.]+$/, '')}.md`,
+                )
+              }
               className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
             >
               {t('detail.download')}
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -123,7 +128,7 @@ export default function DocumentDetailPage() {
             )}
           </div>
           {currentPage ? (
-            <PageViewer src={`/api/v1/pages/${currentPage.id}/image`} />
+            <PageViewer path={`/pages/${currentPage.id}/image`} />
           ) : (
             <p className="py-12 text-center text-slate-400">—</p>
           )}

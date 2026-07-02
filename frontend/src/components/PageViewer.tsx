@@ -1,7 +1,9 @@
 import { useRef, useState, type WheelEvent, type MouseEvent } from 'react';
+import AuthImage from './AuthImage';
 
-/** Zoom/pan viewer for scanned page images (mouse wheel to zoom, drag to pan). */
-export default function PageViewer({ src }: { src: string }) {
+/** Zoom/pan viewer for scanned page images (mouse wheel to zoom, drag to pan).
+ *  `path` is the API path of the image (JWT-protected). */
+export default function PageViewer({ path }: { path: string }) {
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragging = useRef<{ x: number; y: number } | null>(null);
@@ -35,13 +37,12 @@ export default function PageViewer({ src }: { src: string }) {
       }}
       title="scroll: zoom / drag: pan / double-click: reset"
     >
-      <img
-        src={src}
-        draggable={false}
-        className="mx-auto max-h-full select-none"
+      <div
+        className="flex h-full items-start justify-center"
         style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
-        alt="scanned page"
-      />
+      >
+        <AuthImage path={path} draggable={false} className="max-h-full select-none" alt="scanned page" />
+      </div>
     </div>
   );
 }

@@ -93,7 +93,7 @@ export default function CorrectionEditorPage() {
 
       <div className="grid grid-cols-2 gap-4">
         <section className="rounded-lg border border-slate-200 bg-white p-3">
-          <PageViewer src={`/api/v1/pages/${pageId}/image`} />
+          <PageViewer path={`/pages/${pageId}/image`} />
         </section>
         <section className="rounded-lg border border-slate-200 bg-white p-3">
           {showPreview ? (

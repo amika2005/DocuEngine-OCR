@@ -1,9 +1,20 @@
 {
   "appName": "DocuEngine",
   "login": { "title": "Sign in", "email": "Email", "password": "Password", "submit": "Sign in", "error": "Invalid email or password" },
-  "nav": { "documents": "Documents", "corrections": "Corrections", "users": "Users", "devices": "Scanner devices", "training": "Training", "companies": "Companies", "stats": "Stats", "logout": "Sign out" },
+  "nav": { "scan": "Scan", "documents": "Documents", "corrections": "Corrections", "users": "Users", "devices": "Scanner devices", "training": "Training", "companies": "Companies", "stats": "Stats", "logout": "Sign out" },
+  "scan": {
+    "title": "Scan",
+    "subtitle": "Uploaded documents are OCR-processed automatically. Scanner auto-import is handled by DocuEngine Watcher.",
+    "dropHere": "Drop files here, or click to select",
+    "formats": "PDF / PNG / JPEG / TIFF (multiple allowed)",
+    "uploading": "Uploading...",
+    "duplicate": "Already registered (duplicate)",
+    "error": "Error",
+    "result": "Result",
+    "open": "Open"
+  },
   "documents": {
-    "title": "Documents", "upload": "Upload", "filename": "File name", "status": "Status", "pages": "Pages", "date": "Uploaded", "empty": "No documents yet", "search": "Search by file name",
+    "title": "Documents", "upload": "Upload", "filename": "File name", "status": "Status", "pages": "Pages", "date": "Uploaded", "empty": "No documents yet", "search": "Search by file name", "listView": "List view", "gridView": "Grid view",
     "statusValues": { "uploaded": "Uploaded", "queued": "Queued", "processing": "Processing", "completed": "Completed", "failed": "Failed", "partially_failed": "Partially failed" }
   },
   "detail": { "originalImage": "Original image", "markdown": "Markdown result", "download": "Download", "reprocess": "Reprocess", "edit": "Correct", "confidence": "Confidence", "progress": "{{done}} / {{total}} pages processed" },

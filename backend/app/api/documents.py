@@ -188,6 +188,25 @@ def list_pages(
     ).all()
 
 
+@router.get("/documents/{document_id}/thumbnail")
+def get_document_thumbnail(
+    document_id: uuid.UUID,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """First page image — used by the grid view. 404 until rasterization ran."""
+    document = _get_document(db, user, document_id)
+    first_page = db.scalar(
+        select(Page)
+        .where(Page.document_id == document.id)
+        .order_by(Page.page_number)
+        .limit(1)
+    )
+    if first_page is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No pages yet")
+    return FileResponse(first_page.image_path, media_type="image/png")
+
+
 @router.get("/pages/{page_id}/image")
 def get_page_image(
     page_id: uuid.UUID,

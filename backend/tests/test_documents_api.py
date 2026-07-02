@@ -45,6 +45,20 @@ def test_unsupported_type_rejected(client, auth, seed):
     assert response.status_code == 415
 
 
+def test_thumbnail_404_before_rasterization_and_cross_tenant(client, auth, seed):
+    doc = _upload(client, auth("user_a"), "thumb.pdf", b"%PDF-1.4 thumb-target").json()
+    # No pages yet — grid view falls back to an icon.
+    assert (
+        client.get(f"/api/v1/documents/{doc['id']}/thumbnail", headers=auth("user_a")).status_code
+        == 404
+    )
+    # Other tenants can't probe it either.
+    assert (
+        client.get(f"/api/v1/documents/{doc['id']}/thumbnail", headers=auth("user_b")).status_code
+        == 404
+    )
+
+
 def test_list_filters_by_search(client, auth, seed):
     _upload(client, auth("user_a"), "見積書-searchable.pdf", b"%PDF-1.4 searchable")
     response = client.get("/api/v1/documents?q=searchable", headers=auth("user_a"))

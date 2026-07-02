@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from './auth/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import ScanPage from './pages/user/ScanPage';
 import DocumentsPage from './pages/user/DocumentsPage';
 import DocumentDetailPage from './pages/user/DocumentDetailPage';
 import CorrectionEditorPage from './pages/user/CorrectionEditorPage';
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/" element={<Navigate to={home} replace />} />
         {me.role !== 'super_admin' && (
           <>
+            <Route path="/scan" element={<ScanPage />} />
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/documents/:id" element={<DocumentDetailPage />} />
             <Route path="/pages/:pageId/correct" element={<CorrectionEditorPage />} />
