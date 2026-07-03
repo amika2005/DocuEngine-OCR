@@ -10,6 +10,7 @@ from app.api import (
     documents,
     events,
     ingest,
+    masters,
 )
 from app.config import get_settings
 
@@ -38,6 +39,8 @@ def create_app() -> FastAPI:
     app.include_router(dashboard.router, prefix=prefix)
     app.include_router(documents.router, prefix=prefix)
     app.include_router(corrections.router, prefix=prefix)
+    app.include_router(masters.router, prefix=prefix)
+    app.include_router(masters.match_router, prefix=prefix)
     app.include_router(ingest.router, prefix=prefix)
     app.include_router(events.router, prefix=prefix)
 

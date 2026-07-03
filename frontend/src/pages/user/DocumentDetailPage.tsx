@@ -2,13 +2,13 @@ import { useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { api, downloadFile } from '../../api/client';
-import type { Document, Page } from '../../api/types';
+import type { Document, MasterMatch, Page } from '../../api/types';
 import { useEvents } from '../../api/useEvents';
 import StatusBadge from '../../components/StatusBadge';
 import PageViewer from '../../components/PageViewer';
+import MatchableMarkdown from '../../components/MatchableMarkdown';
+import MatchPopup from '../../components/MatchPopup';
 
 export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +16,8 @@ export default function DocumentDetailPage() {
   const queryClient = useQueryClient();
   const [selectedPage, setSelectedPage] = useState(0);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [popup, setPopup] = useState<{ match: MasterMatch; anchor: HTMLElement } | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
 
   const { data: doc } = useQuery({
     queryKey: ['document', id],
@@ -32,6 +34,20 @@ export default function DocumentDetailPage() {
     enabled: !!doc && (doc.status === 'completed' || doc.status === 'partially_failed'),
   });
 
+  const currentPage = pages?.[selectedPage];
+  const { data: matches } = useQuery({
+    queryKey: ['page-matches', currentPage?.id],
+    queryFn: () => api<MasterMatch[]>(`/pages/${currentPage!.id}/matches`),
+    enabled: !!currentPage,
+  });
+
+  const invalidateAll = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['document', id] });
+    queryClient.invalidateQueries({ queryKey: ['document-pages', id] });
+    queryClient.invalidateQueries({ queryKey: ['document-markdown', id] });
+    queryClient.invalidateQueries({ queryKey: ['page-matches'] });
+  }, [id, queryClient]);
+
   const onEvent = useCallback(
     (event: { topic: string; data: Record<string, unknown> }) => {
       if (event.topic.endsWith('.progress')) {
@@ -39,28 +55,55 @@ export default function DocumentDetailPage() {
           done: Number(event.data.pages_done ?? 0),
           total: Number(event.data.pages_total ?? 0),
         });
+        return;
       }
-      if (event.topic.endsWith('.status')) {
-        queryClient.invalidateQueries({ queryKey: ['document', id] });
-        queryClient.invalidateQueries({ queryKey: ['document-pages', id] });
-        queryClient.invalidateQueries({ queryKey: ['document-markdown', id] });
+      if (event.topic.startsWith(`document.${id}.`) || event.topic === 'matches.changed') {
+        invalidateAll();
       }
     },
-    [id, queryClient],
+    [id, invalidateAll],
   );
-  useEvents(`document.${id}`, onEvent);
+  useEvents([`document.${id}`, 'matches.changed'], onEvent);
+
+  async function actOnMatch(action: 'link' | 'dismiss') {
+    if (!popup) return;
+    setLinkBusy(true);
+    try {
+      await api(`/matches/${popup.match.id}/${action}`, { method: 'POST' });
+      setPopup(null);
+      invalidateAll();
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  async function rematch() {
+    await api(`/documents/${id}/rematch`, { method: 'POST' });
+  }
 
   if (!doc) return <p className="text-slate-500">{t('common.loading')}</p>;
 
   const processing = doc.status === 'queued' || doc.status === 'processing';
-  const currentPage = pages?.[selectedPage];
+  const suggestedCount = matches?.filter((match) => match.status === 'suggested').length ?? 0;
 
   return (
     <div>
       <div className="mb-4 flex items-center gap-3">
-        <h1 className="text-xl font-bold">{doc.original_filename}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-xl font-bold">{doc.original_filename}</h1>
         <StatusBadge status={doc.status} />
-        <div className="ml-auto flex gap-2">
+        {suggestedCount > 0 && (
+          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
+            ✓ {t('masters.matchCount', { count: suggestedCount })}
+          </span>
+        )}
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={rematch}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+            title={t('masters.rematchHint')}
+          >
+            {t('masters.rematch')}
+          </button>
           {currentPage && (
             <Link
               to={`/pages/${currentPage.id}/correct`}
@@ -138,7 +181,11 @@ export default function DocumentDetailPage() {
           <h2 className="mb-2 font-medium text-slate-700">{t('detail.markdown')}</h2>
           {markdown != null ? (
             <div className="markdown-body max-h-[70vh] overflow-auto text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+              <MatchableMarkdown
+                markdown={markdown}
+                matches={matches ?? []}
+                onMatchClick={(match, anchor) => setPopup({ match, anchor })}
+              />
             </div>
           ) : (
             <p className="py-12 text-center text-slate-400">
@@ -147,6 +194,17 @@ export default function DocumentDetailPage() {
           )}
         </section>
       </div>
+
+      {popup && (
+        <MatchPopup
+          match={popup.match}
+          anchor={popup.anchor}
+          busy={linkBusy}
+          onLink={() => actOnMatch('link')}
+          onDismiss={() => actOnMatch('dismiss')}
+          onClose={() => setPopup(null)}
+        />
+      )}
     </div>
   );
 }

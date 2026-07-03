@@ -20,6 +20,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     links.push({ to: '/corrections', label: t('nav.corrections'), icon: '✏️' });
   }
   if (me?.role === 'company_admin') {
+    links.push({ to: '/company/masters', label: t('nav.masters'), icon: '🗂️' });
     links.push({ to: '/company/users', label: t('nav.users'), icon: '👥' });
     links.push({ to: '/company/devices', label: t('nav.devices'), icon: '🖨️' });
     links.push({ to: '/company/training', label: t('nav.training'), icon: '🧠' });

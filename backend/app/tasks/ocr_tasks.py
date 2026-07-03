@@ -184,6 +184,28 @@ def assemble_document(document_id: str) -> None:
             f"document.{document.id}.status",
             {"status": document.status, "failed_pages": len(failed)},
         )
+        match_masters.apply_async(args=[document_id])
+    finally:
+        db.close()
+
+
+@celery_app.task
+def match_masters(document_id: str) -> None:
+    """Post-OCR: compare page markdown against the tenant's master data and
+    store suggested matches (green tick / amber tilde in the UI)."""
+    from app.services.matching import match_document
+
+    db = get_sessionmaker()()
+    try:
+        document = db.get(Document, uuid.UUID(document_id))
+        if document is None:
+            return
+        created = match_document(db, document)
+        publish_event(
+            document.company_id,
+            "matches.changed",
+            {"document_id": document_id, "suggested": created},
+        )
     finally:
         db.close()
 

@@ -3,6 +3,13 @@ from app.models.company import Company
 from app.models.correction import Correction, CorrectionStatus
 from app.models.device import Device
 from app.models.document import Batch, BatchStatus, Document, DocumentStatus, DocType
+from app.models.master import (
+    MasterMatch,
+    MasterRecord,
+    MasterType,
+    MatchKind,
+    MatchStatus,
+)
 from app.models.model_version import ModelKind, ModelVersion, ModelVersionStatus
 from app.models.ocr_result import OcrResult
 from app.models.page import Page, PageStatus
@@ -20,6 +27,11 @@ __all__ = [
     "DocType",
     "Document",
     "DocumentStatus",
+    "MasterMatch",
+    "MasterRecord",
+    "MasterType",
+    "MatchKind",
+    "MatchStatus",
     "ModelKind",
     "ModelVersion",
     "ModelVersionStatus",

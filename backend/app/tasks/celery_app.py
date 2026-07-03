@@ -22,6 +22,7 @@ celery_app.conf.update(
         "app.tasks.ocr_tasks.ocr_page": {"queue": "ocr_gpu"},
         "app.tasks.ocr_tasks.rasterize_document": {"queue": "cpu"},
         "app.tasks.ocr_tasks.assemble_document": {"queue": "cpu"},
+        "app.tasks.ocr_tasks.match_masters": {"queue": "cpu"},
         "app.tasks.maintenance.*": {"queue": "cpu"},
         "trainer.*": {"queue": "training"},
     },

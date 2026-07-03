@@ -90,6 +90,51 @@ export interface Device {
   token?: string;
 }
 
+export interface MasterField {
+  key: string;
+  label: string;
+  matchable: boolean;
+  required: boolean;
+}
+
+export interface MasterType {
+  id: string;
+  name: string;
+  fields: MasterField[];
+  records_count: number;
+  created_at: string;
+}
+
+export interface MasterRecord {
+  id: string;
+  master_type_id: string;
+  data: Record<string, string>;
+  created_at: string;
+}
+
+export interface MasterRecordList {
+  items: MasterRecord[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface MasterMatch {
+  id: string;
+  page_id: string;
+  master_record_id: string;
+  master_type_id: string;
+  master_type_name: string;
+  field_key: string;
+  field_label: string;
+  matched_text: string;
+  master_value: string;
+  record_data: Record<string, string>;
+  score: number;
+  kind: 'exact' | 'fuzzy';
+  status: 'suggested' | 'linked' | 'dismissed';
+}
+
 export interface TrainingRun {
   id: string;
   status: string;
