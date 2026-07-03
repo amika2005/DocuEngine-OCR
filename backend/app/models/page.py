@@ -36,3 +36,4 @@ class Page(Base, UUIDMixin, TimestampMixin):
         sa.String(16), default=PageStatus.pending.value, nullable=False
     )
     processing_ms: Mapped[int | None] = mapped_column(sa.Integer)
+    error_message: Mapped[str | None] = mapped_column(sa.Text)

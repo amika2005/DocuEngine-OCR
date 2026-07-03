@@ -81,6 +81,11 @@ export default function DocumentDetailPage() {
     await api(`/documents/${id}/rematch`, { method: 'POST' });
   }
 
+  async function reprocess() {
+    await api(`/documents/${id}/reprocess`, { method: 'POST' });
+    invalidateAll();
+  }
+
   if (!doc) return <p className="text-slate-500">{t('common.loading')}</p>;
 
   const processing = doc.status === 'queued' || doc.status === 'processing';
@@ -97,6 +102,14 @@ export default function DocumentDetailPage() {
           </span>
         )}
         <div className="flex shrink-0 gap-2">
+          {(doc.status === 'failed' || doc.status === 'partially_failed') && (
+            <button
+              onClick={reprocess}
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500"
+            >
+              {t('detail.reprocess')}
+            </button>
+          )}
           <button
             onClick={rematch}
             className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
@@ -152,6 +165,15 @@ export default function DocumentDetailPage() {
         </p>
       )}
 
+      {currentPage?.status === 'failed' && currentPage.error_message && (
+        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <p className="font-medium">
+            {t('detail.pageFailed', { page: currentPage.page_number })}
+          </p>
+          <code className="mt-1 block break-all text-xs">{currentPage.error_message}</code>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <section className="rounded-lg border border-slate-200 bg-white p-3">
           <div className="mb-2 flex items-center justify-between">
@@ -165,6 +187,7 @@ export default function DocumentDetailPage() {
                 {pages.map((page, index) => (
                   <option key={page.id} value={index}>
                     p.{page.page_number}
+                    {page.status === 'failed' ? ' ⚠' : ''}
                   </option>
                 ))}
               </select>

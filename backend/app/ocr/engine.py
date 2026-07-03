@@ -62,7 +62,23 @@ def get_engine() -> OcrEngine:
             _engine = MockEngine()
         else:
             raise ValueError(f"Unknown OCR_ENGINE: {name}")
-        _engine.load()
+        try:
+            _engine.load()
+        except ImportError as exc:
+            _engine = None  # retry cleanly once the environment is fixed
+            raise RuntimeError(
+                f"OCR engine '{name}' could not load: {exc}. "
+                "The paddle stack is not installed in this environment — install it "
+                "with `uv sync --extra ocr` (CPU) or use the worker Docker image, "
+                "or set OCR_ENGINE=mock for development without models."
+            ) from exc
+        except Exception as exc:
+            _engine = None
+            raise RuntimeError(
+                f"OCR engine '{name}' failed to load: {exc}. "
+                "Check MODELS_DIR points at the downloaded model weights "
+                "(scripts/fetch_models.py) or set OCR_ENGINE=mock."
+            ) from exc
     return _engine
 
 

@@ -32,6 +32,7 @@ class PageOut(BaseModel):
     status: str
     width_px: int
     height_px: int
+    error_message: str | None = None
 
     model_config = {"from_attributes": True}
 

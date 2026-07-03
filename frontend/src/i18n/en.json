@@ -65,7 +65,7 @@
     "title": "Documents", "upload": "Upload", "filename": "File name", "status": "Status", "pages": "Pages", "date": "Uploaded", "empty": "No documents yet", "search": "Search by file name", "listView": "List view", "gridView": "Grid view",
     "statusValues": { "uploaded": "Uploaded", "queued": "Queued", "processing": "Processing", "completed": "Completed", "failed": "Failed", "partially_failed": "Partially failed" }
   },
-  "detail": { "originalImage": "Original image", "markdown": "Markdown result", "download": "Download", "reprocess": "Reprocess", "edit": "Correct", "confidence": "Confidence", "progress": "{{done}} / {{total}} pages processed" },
+  "detail": { "originalImage": "Original image", "markdown": "Markdown result", "download": "Download", "reprocess": "Reprocess", "edit": "Correct", "confidence": "Confidence", "progress": "{{done}} / {{total}} pages processed", "pageFailed": "OCR failed for page {{page}}" },
   "editor": { "title": "Correct OCR result", "save": "Save", "submit": "Submit correction", "preview": "Preview", "saved": "Saved", "submitted": "Correction submitted. It will be used as training data." },
   "corrections": { "title": "Corrections", "approve": "Approve", "reject": "Reject", "status": { "draft": "Draft", "submitted": "Pending approval", "approved": "Approved", "rejected": "Rejected", "used_in_training": "Used in training" } },
   "admin": {

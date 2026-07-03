@@ -32,6 +32,7 @@ export interface Page {
   status: string;
   width_px: number;
   height_px: number;
+  error_message: string | null;
 }
 
 export interface OcrResult {

@@ -5,10 +5,13 @@ Per-page granularity is what makes 100-document scanner batches safe on a single
 GPU: the queue drains page by page, progress is fine-grained, and a failure
 affects one page, never the batch."""
 
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from celery import chord
 from sqlalchemy import func, select
@@ -99,10 +102,14 @@ def ocr_page(self, page_id: str) -> None:
         started = time.monotonic()
         try:
             result = get_engine().parse_page(Path(page.image_path))
-        except Exception:
+        except Exception as exc:
             if self.request.retries < self.max_retries:
                 raise self.retry(countdown=5 * (self.request.retries + 1))
+            # Final failure: keep the reason so the UI can show WHY, not just a
+            # bare "failed" — engine misconfiguration must be self-diagnosable.
+            logger.exception("OCR failed for page %s", page_id)
             page.status = PageStatus.failed.value
+            page.error_message = f"{type(exc).__name__}: {exc}"[:2000]
             db.commit()
             _publish_page_event(db, page)
             return
@@ -164,9 +171,11 @@ def assemble_document(document_id: str) -> None:
             result = db.scalar(
                 select(OcrResult).where(OcrResult.page_id == page.id, OcrResult.is_current)
             )
-            page_markdowns.append(
-                result.markdown if result else f"<!-- page {page.page_number}: OCR failed -->"
-            )
+            if result:
+                page_markdowns.append(result.markdown)
+            else:
+                reason = page.error_message or "unknown error"
+                page_markdowns.append(f"<!-- page {page.page_number}: OCR failed — {reason} -->")
 
         md_path = storage.document_markdown_path(document.company_id, document.id)
         storage.save_bytes(md_path, assemble.document_markdown(page_markdowns).encode())
@@ -174,6 +183,11 @@ def assemble_document(document_id: str) -> None:
         document.status = (
             DocumentStatus.partially_failed.value if failed else DocumentStatus.completed.value
         )
+        if failed:
+            document.error_message = (
+                f"{len(failed)}/{len(pages)} pages failed — "
+                + (failed[0].error_message or "see worker logs")
+            )[:2000]
         document.model_version_id = _active_model_version_id(db, document.company_id)
         document.completed_at = _utcnow()
         db.commit()

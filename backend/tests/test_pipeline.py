@@ -4,6 +4,7 @@ markdown with tables and correct statuses."""
 
 import io
 import uuid
+from pathlib import Path
 
 import fitz
 import pytest
@@ -84,6 +85,61 @@ def test_failed_rasterize_marks_document_failed(db, seed):
     refreshed = db.get(Document, document.id)
     assert refreshed.status == DocumentStatus.failed.value
     assert refreshed.error_message
+
+
+def test_engine_failure_records_reason_on_page(db, seed, monkeypatch):
+    """A misconfigured engine must leave a diagnosable trail: page.error_message,
+    document partially_failed with a summary, and the reason in document.md."""
+
+    class BrokenEngine:
+        name = "broken"
+
+        def parse_page(self, image_path):
+            raise RuntimeError(
+                "OCR engine 'paddleocr-vl' could not load: No module named 'paddleocr'"
+            )
+
+    monkeypatch.setattr(ocr_tasks, "get_engine", lambda: BrokenEngine())
+    # Eager Celery can't do real retries — exercise the final-failure path.
+    monkeypatch.setattr(ocr_tasks.ocr_page, "max_retries", 0)
+
+    document = doc_service.create_document(
+        db,
+        company_id=seed["company_a"].id,
+        filename="engine-broken.pdf",
+        content=make_pdf(pages=1),
+        uploaded_by_user_id=seed["user_a"].id,
+    )
+    ocr_tasks.rasterize_document.apply(args=[str(document.id)]).get()
+
+    db.expire_all()
+    refreshed = db.get(Document, document.id)
+    assert refreshed.status == DocumentStatus.partially_failed.value
+    assert "paddleocr" in (refreshed.error_message or "")
+
+    page = db.scalar(select(Page).where(Page.document_id == document.id))
+    assert page.status == PageStatus.failed.value
+    assert "No module named 'paddleocr'" in page.error_message
+
+    markdown = storage.document_markdown_path(refreshed.company_id, refreshed.id).read_text()
+    assert "OCR failed — " in markdown
+    assert "paddleocr" in markdown
+
+
+def test_engine_load_error_is_actionable(monkeypatch):
+    from app.ocr import engine as engine_module
+
+    monkeypatch.setattr("app.config.get_settings", lambda: type(
+        "S", (), {"ocr_engine": "paddleocr-vl", "models_dir": Path("/nonexistent")}
+    )())
+    engine_module.reset_engine()
+    try:
+        with pytest.raises(RuntimeError) as excinfo:
+            engine_module.get_engine()
+        message = str(excinfo.value)
+        assert "uv sync --extra ocr" in message or "OCR_ENGINE=mock" in message
+    finally:
+        engine_module.reset_engine()
 
 
 def test_image_input_is_rasterized_like_pdf(db, seed):

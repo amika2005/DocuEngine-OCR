@@ -65,7 +65,7 @@
     "title": "文書一覧", "upload": "アップロード", "filename": "ファイル名", "status": "状態", "pages": "ページ", "date": "登録日時", "empty": "文書がありません", "search": "ファイル名で検索", "listView": "リスト表示", "gridView": "グリッド表示",
     "statusValues": { "uploaded": "受付済", "queued": "待機中", "processing": "処理中", "completed": "完了", "failed": "失敗", "partially_failed": "一部失敗" }
   },
-  "detail": { "originalImage": "原本画像", "markdown": "Markdown 結果", "download": "ダウンロード", "reprocess": "再処理", "edit": "修正する", "confidence": "信頼度", "progress": "{{done}} / {{total}} ページ処理済" },
+  "detail": { "originalImage": "原本画像", "markdown": "Markdown 結果", "download": "ダウンロード", "reprocess": "再処理", "edit": "修正する", "confidence": "信頼度", "progress": "{{done}} / {{total}} ページ処理済", "pageFailed": "ページ {{page}} の OCR に失敗しました" },
   "editor": { "title": "OCR 結果の修正", "save": "保存", "submit": "修正を送信", "preview": "プレビュー", "saved": "保存しました", "submitted": "修正を送信しました。学習データとして利用されます。" },
   "corrections": { "title": "修正一覧", "approve": "承認", "reject": "却下", "status": { "draft": "下書き", "submitted": "承認待ち", "approved": "承認済", "rejected": "却下", "used_in_training": "学習済" } },
   "admin": {
