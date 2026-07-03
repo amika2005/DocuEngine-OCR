@@ -1,8 +1,14 @@
 @import 'tailwindcss';
 
+/* Slightly larger global scale — all rem-based Tailwind sizes inherit this. */
+html {
+  font-size: 17px;
+}
+
 body {
   font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', Meiryo,
     system-ui, sans-serif;
+  color: #1e293b;
 }
 
 .markdown-body h1 { @apply text-2xl font-bold mt-4 mb-2; }

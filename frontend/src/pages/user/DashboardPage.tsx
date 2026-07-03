@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { AlertTriangle, CalendarDays, CheckCircle2, Cog, PenLine, ScanLine } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
@@ -44,31 +45,31 @@ export default function DashboardPage() {
         <h1 className="text-xl font-bold">{t('dashboard.title')}</h1>
         <Link
           to="/scan"
-          className="ml-auto rounded bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700"
+          className="ml-auto flex items-center gap-2 rounded bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700"
         >
-          📥 {t('nav.scan')}
+          <ScanLine className="h-4 w-4" strokeWidth={1.8} /> {t('nav.scan')}
         </Link>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label={t('dashboard.today')} value={data.documents_today} icon="📅" accent="blue" />
+        <StatTile label={t('dashboard.today')} value={data.documents_today} icon={CalendarDays} accent="blue" />
         <StatTile
           label={t('dashboard.processing')}
           value={data.processing_now}
-          icon="⚙️"
+          icon={Cog}
           accent={data.processing_now > 0 ? 'amber' : 'default'}
         />
         <StatTile
           label={t('documents.statusValues.completed')}
           value={status.completed ?? 0}
-          icon="✅"
+          icon={CheckCircle2}
           accent="green"
           to="/documents"
         />
         <StatTile
           label={t('dashboard.failed')}
           value={failed}
-          icon="⚠️"
+          icon={AlertTriangle}
           accent={failed > 0 ? 'red' : 'default'}
           to="/documents"
         />
@@ -111,7 +112,7 @@ export default function DashboardPage() {
           to="/corrections"
           className="block rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 hover:bg-amber-100"
         >
-          ✏️ {t('dashboard.myCorrections', {
+          <PenLine className="mr-1 inline h-4 w-4" strokeWidth={1.8} /> {t('dashboard.myCorrections', {
             drafts: data.my_corrections.drafts,
             submitted: data.my_corrections.submitted,
           })}

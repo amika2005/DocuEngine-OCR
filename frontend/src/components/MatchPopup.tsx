@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link2, X } from 'lucide-react';
 import type { MasterMatch } from '../api/types';
 
 /** Popover shown when a highlighted match is clicked: the master record's
@@ -81,23 +82,23 @@ export default function MatchPopup({
 
       {match.status === 'linked' ? (
         <p className="text-center text-xs font-medium text-green-700">
-          🔗 {t('masters.linked')}
+          <Link2 className="mr-1 inline h-3.5 w-3.5" strokeWidth={1.8} /> {t('masters.linked')}
         </p>
       ) : (
         <div className="flex gap-2">
           <button
             onClick={onLink}
             disabled={busy}
-            className="flex-1 rounded bg-green-600 py-1.5 text-sm text-white hover:bg-green-500 disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded bg-green-600 py-1.5 text-sm text-white hover:bg-green-500 disabled:opacity-50"
           >
-            🔗 {t('masters.link')}
+            <Link2 className="h-4 w-4" strokeWidth={1.8} /> {t('masters.link')}
           </button>
           <button
             onClick={onDismiss}
             disabled={busy}
-            className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="flex items-center gap-1 rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
           >
-            {t('masters.dismiss')}
+            <X className="h-3.5 w-3.5" strokeWidth={1.8} /> {t('masters.dismiss')}
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FileText, Image } from 'lucide-react';
 import type { Document } from '../api/types';
 import AuthImage from './AuthImage';
 
@@ -18,9 +19,11 @@ export default function DocumentThumbnail({ document }: { document: Document }) 
           alt=""
         />
       ) : (
-        <span className="text-5xl opacity-40" aria-hidden>
-          {document.original_filename.toLowerCase().endsWith('.pdf') ? '📄' : '🖼️'}
-        </span>
+        document.original_filename.toLowerCase().endsWith('.pdf') ? (
+          <FileText className="h-14 w-14 text-slate-300" strokeWidth={1.2} aria-hidden />
+        ) : (
+          <Image className="h-14 w-14 text-slate-300" strokeWidth={1.2} aria-hidden />
+        )
       )}
     </div>
   );

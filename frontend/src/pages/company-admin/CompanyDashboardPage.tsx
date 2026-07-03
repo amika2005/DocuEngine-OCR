@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { AlertTriangle, CalendarDays, Cog, PenLine, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
@@ -43,24 +44,24 @@ export default function CompanyDashboardPage() {
       <h1 className="text-xl font-bold">{t('dashboard.title')}</h1>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label={t('dashboard.today')} value={data.documents_today} icon="📅" accent="blue" />
+        <StatTile label={t('dashboard.today')} value={data.documents_today} icon={CalendarDays} accent="blue" />
         <StatTile
           label={t('dashboard.processing')}
           value={data.processing_now}
-          icon="⚙️"
+          icon={Cog}
           accent={data.processing_now > 0 ? 'amber' : 'default'}
         />
         <StatTile
           label={t('dashboard.failed')}
           value={failed}
-          icon="⚠️"
+          icon={AlertTriangle}
           accent={failed > 0 ? 'red' : 'default'}
           to="/documents"
         />
         <StatTile
           label={t('dashboard.awaitingApproval')}
           value={data.corrections_awaiting_approval}
-          icon="✏️"
+          icon={PenLine}
           accent={data.corrections_awaiting_approval > 0 ? 'amber' : 'default'}
           to="/corrections"
         />
@@ -106,7 +107,7 @@ export default function CompanyDashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <StatTile label={t('nav.users')} value={data.users_count} icon="👥" to="/company/users" />
+        <StatTile label={t('nav.users')} value={data.users_count} icon={Users} to="/company/users" />
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs font-medium text-slate-500">{t('dashboard.activeModel')}</p>
           <p className="mt-1 truncate text-sm font-medium text-slate-800">

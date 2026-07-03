@@ -43,7 +43,7 @@ export default function MatchableMarkdown({
         >
           {match.matched_text}
           <span className="ml-0.5 select-none text-[10px] align-super">
-            {linked ? '🔗' : exact ? '✓' : '~'}
+            {linked ? '✓✓' : exact ? '✓' : '~'}
           </span>
         </mark>,
         ...(after ? highlightString(after, `${keyPrefix}a`) : [after]),

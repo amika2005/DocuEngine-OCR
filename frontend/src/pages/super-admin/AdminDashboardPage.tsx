@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Building2, FileText, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useLiveInvalidate } from '../../api/useEvents';
@@ -39,9 +40,9 @@ export default function AdminDashboardPage() {
       <h1 className="text-xl font-bold">{t('dashboard.title')}</h1>
 
       <div className="grid grid-cols-3 gap-4">
-        <StatTile label={t('nav.companies')} value={data.companies} icon="🏢" to="/admin/companies" />
-        <StatTile label={t('admin.users.title')} value={data.users} icon="👥" />
-        <StatTile label={t('nav.documents')} value={data.documents} icon="📄" accent="blue" />
+        <StatTile label={t('nav.companies')} value={data.companies} icon={Building2} to="/admin/companies" />
+        <StatTile label={t('admin.users.title')} value={data.users} icon={Users} />
+        <StatTile label={t('nav.documents')} value={data.documents} icon={FileText} accent="blue" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

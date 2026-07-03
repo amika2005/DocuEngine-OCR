@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Download, FileUp } from 'lucide-react';
 import { api, ApiError } from '../../api/client';
 import { useLiveInvalidate } from '../../api/useEvents';
 import type { MasterField, MasterRecord, MasterRecordList, MasterType } from '../../api/types';
@@ -267,16 +268,16 @@ function RecordsPanel({ type, onDeleteType }: { type: MasterType; onDeleteType: 
         />
         <button
           onClick={() => fileInput.current?.click()}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          className="flex items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
         >
-          📄 {t('masters.importCsv')}
+          <FileUp className="h-4 w-4" strokeWidth={1.8} /> {t('masters.importCsv')}
         </button>
         <button
           onClick={downloadTemplate}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
           title={t('masters.csvTemplate')}
         >
-          ⬇
+          <Download className="h-4 w-4" strokeWidth={1.8} />
         </button>
         <button
           onClick={() => setEditing('new')}

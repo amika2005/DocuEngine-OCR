@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../../api/client';
 import type { Document } from '../../api/types';
@@ -102,9 +103,7 @@ export default function ScanPage() {
             : 'border-slate-300 bg-white hover:border-slate-400'
         }`}
       >
-        <span className="mb-2 text-4xl" aria-hidden>
-          📥
-        </span>
+        <Upload className="mb-3 h-10 w-10 text-slate-400" strokeWidth={1.5} aria-hidden />
         <p className="font-medium text-slate-700">{t('scan.dropHere')}</p>
         <p className="mt-1 text-xs text-slate-400">{t('scan.formats')}</p>
         <input
