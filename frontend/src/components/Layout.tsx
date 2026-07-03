@@ -13,7 +13,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { me, logout } = useAuth();
   const { t, i18n } = useTranslation();
 
-  const links: NavItem[] = [];
+  const links: NavItem[] = [{ to: '/dashboard', label: t('nav.dashboard'), icon: '🏠' }];
   if (me?.role !== 'super_admin') {
     links.push({ to: '/scan', label: t('nav.scan'), icon: '📥' });
     links.push({ to: '/documents', label: t('nav.documents'), icon: '📄' });
@@ -26,7 +26,6 @@ export default function Layout({ children }: { children: ReactNode }) {
   }
   if (me?.role === 'super_admin') {
     links.push({ to: '/admin/companies', label: t('nav.companies'), icon: '🏢' });
-    links.push({ to: '/admin/stats', label: t('nav.stats'), icon: '📊' });
   }
 
   function toggleLanguage() {

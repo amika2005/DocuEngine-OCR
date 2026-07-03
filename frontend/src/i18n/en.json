@@ -1,7 +1,27 @@
 {
   "appName": "DocuEngine",
   "login": { "title": "Sign in", "email": "Email", "password": "Password", "submit": "Sign in", "error": "Invalid email or password" },
-  "nav": { "scan": "Scan", "documents": "Documents", "corrections": "Corrections", "users": "Users", "devices": "Scanner devices", "training": "Training", "companies": "Companies", "stats": "Stats", "logout": "Sign out" },
+  "dashboard": {
+    "title": "Dashboard",
+    "today": "Documents today",
+    "processing": "Pages processing",
+    "failed": "Failed",
+    "awaitingApproval": "Corrections to review",
+    "volume7d": "Documents — last 7 days",
+    "volume7dGlobal": "Documents — last 7 days (all companies)",
+    "recent": "Recent documents",
+    "recentAudit": "Recent activity log",
+    "viewAll": "View all",
+    "devices": "Scanner devices",
+    "online": "Online",
+    "offline": "Offline",
+    "neverSeen": "Never connected",
+    "activeModel": "Active model",
+    "lastTraining": "Latest training run",
+    "noTraining": "No runs yet",
+    "myCorrections": "My corrections: {{drafts}} drafts / {{submitted}} pending approval"
+  },
+  "nav": { "dashboard": "Dashboard", "scan": "Scan", "documents": "Documents", "corrections": "Corrections", "users": "Users", "devices": "Scanner devices", "training": "Training", "companies": "Companies", "stats": "Stats", "logout": "Sign out" },
   "scan": {
     "title": "Scan",
     "subtitle": "Uploaded documents are OCR-processed automatically. Scanner auto-import is handled by DocuEngine Watcher.",

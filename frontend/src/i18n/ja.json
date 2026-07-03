@@ -1,7 +1,27 @@
 {
   "appName": "DocuEngine",
   "login": { "title": "ログイン", "email": "メールアドレス", "password": "パスワード", "submit": "ログイン", "error": "メールアドレスまたはパスワードが正しくありません" },
-  "nav": { "scan": "スキャン", "documents": "文書", "corrections": "修正", "users": "ユーザー管理", "devices": "スキャナー端末", "training": "学習", "companies": "会社管理", "stats": "統計", "logout": "ログアウト" },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "today": "本日の文書",
+    "processing": "処理中ページ",
+    "failed": "失敗",
+    "awaitingApproval": "承認待ち修正",
+    "volume7d": "過去7日間の文書数",
+    "volume7dGlobal": "過去7日間の文書数（全社）",
+    "recent": "最近の文書",
+    "recentAudit": "最近の操作ログ",
+    "viewAll": "すべて表示",
+    "devices": "スキャナー端末",
+    "online": "オンライン",
+    "offline": "オフライン",
+    "neverSeen": "未接続",
+    "activeModel": "適用中モデル",
+    "lastTraining": "最新の学習実行",
+    "noTraining": "実行履歴なし",
+    "myCorrections": "自分の修正: 下書き {{drafts}} 件 / 承認待ち {{submitted}} 件"
+  },
+  "nav": { "dashboard": "ダッシュボード", "scan": "スキャン", "documents": "文書", "corrections": "修正", "users": "ユーザー管理", "devices": "スキャナー端末", "training": "学習", "companies": "会社管理", "stats": "統計", "logout": "ログアウト" },
   "scan": {
     "title": "スキャン",
     "subtitle": "文書をアップロードすると自動的に OCR 処理されます。スキャナーからの自動取込は DocuEngine Watcher が行います。",

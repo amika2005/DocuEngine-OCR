@@ -107,8 +107,27 @@ def create_company_admin(
 
 @router.get("/stats")
 def global_stats(db: Session = Depends(get_db)):
+    from app.api.dashboard import _daily_volume
+
+    document_counts = {
+        str(row[0]): row[1]
+        for row in db.execute(select(Document.company_id, func.count()).group_by(Document.company_id))
+    }
+    user_counts = {
+        str(row[0]): row[1]
+        for row in db.execute(
+            select(User.company_id, func.count())
+            .where(User.company_id.isnot(None))
+            .group_by(User.company_id)
+        )
+    }
+    companies = db.scalars(select(Company).order_by(Company.created_at)).all()
+    recent_audit = db.scalars(
+        select(AuditLog).order_by(AuditLog.created_at.desc()).limit(8)
+    ).all()
+
     return {
-        "companies": db.scalar(select(func.count()).select_from(Company)),
+        "companies": len(companies),
         "users": db.scalar(select(func.count()).select_from(User)),
         "documents": db.scalar(select(func.count()).select_from(Document)),
         "documents_by_status": {
@@ -117,6 +136,26 @@ def global_stats(db: Session = Depends(get_db)):
                 select(Document.status, func.count()).group_by(Document.status)
             )
         },
+        "daily_volume": _daily_volume(db),
+        "per_company": [
+            {
+                "id": str(company.id),
+                "name": company.name,
+                "slug": company.slug,
+                "status": company.status,
+                "documents_total": document_counts.get(str(company.id), 0),
+                "users_count": user_counts.get(str(company.id), 0),
+            }
+            for company in companies
+        ],
+        "recent_audit": [
+            {
+                "action": entry.action,
+                "target_type": entry.target_type,
+                "created_at": entry.created_at.isoformat(),
+            }
+            for entry in recent_audit
+        ],
     }
 
 

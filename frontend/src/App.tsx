@@ -3,16 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from './auth/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import DashboardPage from './pages/user/DashboardPage';
 import ScanPage from './pages/user/ScanPage';
 import DocumentsPage from './pages/user/DocumentsPage';
 import DocumentDetailPage from './pages/user/DocumentDetailPage';
 import CorrectionEditorPage from './pages/user/CorrectionEditorPage';
 import CorrectionsPage from './pages/user/CorrectionsPage';
+import CompanyDashboardPage from './pages/company-admin/CompanyDashboardPage';
 import UsersPage from './pages/company-admin/UsersPage';
 import DevicesPage from './pages/company-admin/DevicesPage';
 import TrainingPage from './pages/company-admin/TrainingPage';
+import AdminDashboardPage from './pages/super-admin/AdminDashboardPage';
 import CompaniesPage from './pages/super-admin/CompaniesPage';
-import StatsPage from './pages/super-admin/StatsPage';
 
 export default function App() {
   const { me, loading } = useAuth();
@@ -23,12 +25,20 @@ export default function App() {
   }
   if (!me) return <Login />;
 
-  const home = me.role === 'super_admin' ? '/admin/companies' : '/documents';
+  const dashboard =
+    me.role === 'super_admin' ? (
+      <AdminDashboardPage />
+    ) : me.role === 'company_admin' ? (
+      <CompanyDashboardPage />
+    ) : (
+      <DashboardPage />
+    );
 
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Navigate to={home} replace />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={dashboard} />
         {me.role !== 'super_admin' && (
           <>
             <Route path="/scan" element={<ScanPage />} />
@@ -48,10 +58,10 @@ export default function App() {
         {me.role === 'super_admin' && (
           <>
             <Route path="/admin/companies" element={<CompaniesPage />} />
-            <Route path="/admin/stats" element={<StatsPage />} />
+            <Route path="/admin/stats" element={<Navigate to="/dashboard" replace />} />
           </>
         )}
-        <Route path="*" element={<Navigate to={home} replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Layout>
   );
