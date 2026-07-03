@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_company_member
 from app.db.session import get_db
+from app.events.publisher import publish_event
 from app.models import (
     Batch,
     Document,
@@ -70,6 +71,7 @@ async def upload_document(
     log_action(db, "document.upload", company_id=user.company_id, actor_user_id=user.id,
                target_type="document", target_id=str(document.id))
     db.commit()
+    publish_event(user.company_id, "documents.changed", {"action": "uploaded"})
     # Interactive uploads get priority over bulk scanner batches.
     doc_service.enqueue_ocr(document, priority=5)
     return document
@@ -174,6 +176,7 @@ def delete_document(
     log_action(db, "document.delete", company_id=user.company_id, actor_user_id=user.id,
                target_type="document", target_id=str(document_id))
     db.commit()
+    publish_event(user.company_id, "documents.changed", {"action": "deleted"})
 
 
 @router.get("/documents/{document_id}/pages", response_model=list[PageOut])

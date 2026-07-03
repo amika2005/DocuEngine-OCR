@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_device
 from app.config import get_settings
 from app.db.session import get_db
+from app.events.publisher import publish_event
 from app.models import Batch, BatchStatus, Device, Document, DocumentStatus, Page, PageStatus
 from app.schemas.document import BatchOut, DocumentOut
 from app.services import documents as doc_service
@@ -109,6 +110,7 @@ async def ingest_document(
         )
         db.commit()
 
+    publish_event(device.company_id, "documents.changed", {"action": "ingested"})
     doc_service.enqueue_ocr(document)
     return document
 

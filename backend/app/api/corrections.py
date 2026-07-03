@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_company_admin, require_company_member
 from app.db.session import get_db
+from app.events.publisher import publish_event
 from app.models import (
     Company,
     Correction,
@@ -67,6 +68,7 @@ def create_correction(
     )
     db.add(correction)
     db.commit()
+    publish_event(user.company_id, "corrections.changed", {"action": "created"})
     return correction
 
 
@@ -103,6 +105,7 @@ def submit_correction(
     log_action(db, "correction.submit", company_id=user.company_id, actor_user_id=user.id,
                target_type="correction", target_id=str(correction.id))
     db.commit()
+    publish_event(user.company_id, "corrections.changed", {"action": "submitted"})
     return correction
 
 
@@ -131,6 +134,7 @@ def approve_correction(
     log_action(db, "correction.approve", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="correction", target_id=str(correction.id))
     db.commit()
+    publish_event(admin.company_id, "corrections.changed", {"action": "approved"})
     return correction
 
 
@@ -147,4 +151,5 @@ def reject_correction(
     log_action(db, "correction.reject", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="correction", target_id=str(correction.id))
     db.commit()
+    publish_event(admin.company_id, "corrections.changed", {"action": "rejected"})
     return correction

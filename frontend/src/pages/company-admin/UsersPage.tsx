@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
+import { useLiveInvalidate } from '../../api/useEvents';
 import type { User } from '../../api/types';
 
 export default function UsersPage() {
@@ -15,6 +16,7 @@ export default function UsersPage() {
     queryKey: ['company-users'],
     queryFn: () => api<User[]>('/company/users'),
   });
+  useLiveInvalidate('company.users.', [['company-users']]);
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();

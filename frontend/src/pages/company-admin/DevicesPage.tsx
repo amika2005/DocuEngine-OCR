@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
+import { useLiveInvalidate } from '../../api/useEvents';
 import type { Device } from '../../api/types';
 
 export default function DevicesPage() {
@@ -14,6 +15,7 @@ export default function DevicesPage() {
     queryKey: ['company-devices'],
     queryFn: () => api<Device[]>('/company/devices'),
   });
+  useLiveInvalidate('company.devices.', [['company-devices']]);
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();

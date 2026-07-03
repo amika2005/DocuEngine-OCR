@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
+import { useLiveInvalidate } from '../../api/useEvents';
 import type { Correction } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -13,6 +14,7 @@ export default function CorrectionsPage() {
     queryKey: ['corrections'],
     queryFn: () => api<Correction[]>('/corrections'),
   });
+  useLiveInvalidate('corrections.', [['corrections']]);
 
   async function act(id: string, action: 'approve' | 'reject') {
     await api(`/corrections/${id}/${action}`, { method: 'POST' });

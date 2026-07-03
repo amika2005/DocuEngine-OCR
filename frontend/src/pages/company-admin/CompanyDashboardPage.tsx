@@ -1,9 +1,8 @@
-import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
-import { useEvents } from '../../api/useEvents';
+import { useLiveInvalidate } from '../../api/useEvents';
 import StatTile from '../../components/StatTile';
 import StatusBadge from '../../components/StatusBadge';
 import VolumeChart from '../../components/VolumeChart';
@@ -24,18 +23,15 @@ function deviceOnline(lastSeen: string | null): boolean {
 
 export default function CompanyDashboardPage() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
 
   const { data } = useQuery({
     queryKey: ['dashboard-company'],
     queryFn: () => api<CompanyDashboardData>('/dashboard/company'),
   });
 
-  const refresh = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: ['dashboard-company'] }),
-    [queryClient],
-  );
-  useEvents('document.', refresh);
+  // Any tenant event (documents, users, devices, corrections, training,
+  // model activation) refreshes the whole dashboard.
+  useLiveInvalidate('', [['dashboard-company']]);
 
   if (!data) return <p className="text-slate-500">{t('common.loading')}</p>;
 

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
+import { useLiveInvalidate } from '../../api/useEvents';
 import type { ModelVersion, TrainingRun } from '../../api/types';
 
 export default function TrainingPage() {
@@ -15,6 +16,7 @@ export default function TrainingPage() {
     queryKey: ['model-versions'],
     queryFn: () => api<ModelVersion[]>('/company/model-versions'),
   });
+  useLiveInvalidate(['training.', 'models.'], [['training-runs'], ['model-versions']]);
 
   async function trigger() {
     await api('/company/training-runs', { method: 'POST' });

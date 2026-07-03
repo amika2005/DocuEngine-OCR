@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_company_admin
 from app.db.session import get_db
+from app.events.publisher import publish_event
 from app.models import (
     Company,
     Device,
@@ -72,6 +73,7 @@ def create_user(
     log_action(db, "user.create", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="user", target_id=str(user.id), detail={"role": user.role})
     db.commit()
+    publish_event(admin.company_id, "company.users.changed", {"action": "created"})
     return user
 
 
@@ -96,6 +98,7 @@ def update_user(
     log_action(db, "user.update", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="user", target_id=str(user.id))
     db.commit()
+    publish_event(admin.company_id, "company.users.changed", {"action": "updated"})
     return user
 
 
@@ -148,6 +151,7 @@ def create_device(
     log_action(db, "device.create", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="device", target_id=str(device.id))
     db.commit()
+    publish_event(admin.company_id, "company.devices.changed", {"action": "created"})
     return DeviceCreatedOut(
         **DeviceOut.model_validate(device, from_attributes=True).model_dump(),
         token=raw_token,
@@ -167,6 +171,7 @@ def delete_device(
     log_action(db, "device.delete", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="device", target_id=str(device_id))
     db.commit()
+    publish_event(admin.company_id, "company.devices.changed", {"action": "deleted"})
 
 
 # --- Usage / training ---
@@ -224,6 +229,7 @@ def trigger_training(
         "trainer.run_training", args=[str(admin.company_id)],
         kwargs={"training_run_id": str(run.id)}, queue="training",
     )
+    publish_event(admin.company_id, "training.changed", {"action": "triggered"})
     return run
 
 
@@ -254,4 +260,5 @@ def activate_tenant_model(
     log_action(db, "model.activate", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="model_version", target_id=str(version.id))
     db.commit()
+    publish_event(admin.company_id, "models.changed", {"action": "activated"})
     return version

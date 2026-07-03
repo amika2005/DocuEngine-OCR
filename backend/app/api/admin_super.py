@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_super_admin
 from app.db.session import get_db
+from app.events.publisher import publish_event
 from app.models import (
     AuditLog,
     Company,
@@ -45,6 +46,7 @@ def create_company(
     log_action(db, "company.create", actor_user_id=admin.id, target_type="company",
                target_id=str(company.id), detail={"name": company.name})
     db.commit()
+    publish_event(company.id, "company.created", {"name": company.name})
     return company
 
 
@@ -102,6 +104,7 @@ def create_company_admin(
     log_action(db, "user.create", company_id=company_id, actor_user_id=admin.id,
                target_type="user", target_id=str(user.id), detail={"role": user.role})
     db.commit()
+    publish_event(company_id, "company.users.changed", {"action": "created"})
     return user
 
 
@@ -202,4 +205,6 @@ def activate_model_version(
     log_action(db, "model.activate", actor_user_id=admin.id, company_id=version.company_id,
                target_type="model_version", target_id=str(version.id))
     db.commit()
+    if version.company_id:
+        publish_event(version.company_id, "models.changed", {"action": "activated"})
     return version

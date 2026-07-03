@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
+import { useLiveInvalidate } from '../../api/useEvents';
 import StatTile from '../../components/StatTile';
 import VolumeChart, { type DailyPoint } from '../../components/VolumeChart';
 
@@ -26,8 +27,10 @@ export default function AdminDashboardPage() {
   const { data } = useQuery({
     queryKey: ['dashboard-admin'],
     queryFn: () => api<AdminStats>('/admin/stats'),
-    refetchInterval: 30_000,
+    refetchInterval: 30_000, // fallback poll; SSE below covers the live path
   });
+  // Super admins receive every tenant's events on the SSE stream.
+  useLiveInvalidate('', [['dashboard-admin']]);
 
   if (!data) return <p className="text-slate-500">{t('common.loading')}</p>;
 
