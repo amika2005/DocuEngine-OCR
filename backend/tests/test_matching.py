@@ -1,4 +1,4 @@
-"""Matching service: normalization-aware exact/fuzzy detection and the
+﻿"""Matching service: normalization-aware exact/fuzzy detection and the
 link-as-correction flow."""
 
 import uuid
@@ -169,7 +169,7 @@ def test_link_match_corrects_markdown_and_records_correction(db, seed, customer_
 
     # Assembled document markdown was rewritten with the corrected text.
     md_path = storage.document_markdown_path(document.company_id, document.id)
-    assert "株式会社サンプル商事" in md_path.read_text()
+    assert "株式会社サンプル商事" in md_path.read_text(encoding="utf-8")
 
 
 def test_link_match_stale_text_conflicts(db, seed, customer_master):
@@ -187,8 +187,8 @@ def test_validate_fields():
         [{"key": "Name!", "label": "名前", "matchable": True}]
     )
     assert cleaned[0]["key"] == "name_"
-    with pytest.raises(ValueError):
-        validate_fields([])
+    # Empty is allowed: columns are inferred from the first bulk import.
+    assert validate_fields([]) == []
     with pytest.raises(ValueError):
         validate_fields([{"key": "a", "label": "A", "matchable": False}])  # none matchable
     with pytest.raises(ValueError):

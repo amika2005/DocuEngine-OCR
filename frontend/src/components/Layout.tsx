@@ -8,6 +8,7 @@ import {
   FileText,
   Languages,
   LayoutDashboard,
+  LayoutTemplate,
   LogOut,
   PenLine,
   Printer,
@@ -35,6 +36,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   }
   if (me?.role === 'company_admin') {
     links.push({ to: '/company/masters', label: t('nav.masters'), icon: Database });
+    links.push({ to: '/company/templates', label: t('nav.templates'), icon: LayoutTemplate });
     links.push({ to: '/company/users', label: t('nav.users'), icon: Users });
     links.push({ to: '/company/devices', label: t('nav.devices'), icon: Printer });
     links.push({ to: '/company/training', label: t('nav.training'), icon: BrainCircuit });

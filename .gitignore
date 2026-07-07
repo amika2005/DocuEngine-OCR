@@ -42,3 +42,8 @@ Thumbs.db
 # Build artifacts
 docuengine-bundle-*.tar.gz
 *.log
+
+# Backend runtime data & downloaded OCR models (never in git)
+backend/data/
+backend/models/
+backend/test_*.png

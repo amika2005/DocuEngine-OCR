@@ -14,6 +14,7 @@ from app.models import (
     DocumentStatus,
     OcrResult,
     Page,
+    Template,
     User,
 )
 from app.schemas.document import (
@@ -48,9 +49,14 @@ def _get_page(db: Session, user: User, page_id: uuid.UUID) -> Page:
 async def upload_document(
     file: UploadFile,
     doc_type: str = "other",
+    template_id: uuid.UUID | None = None,
     user: User = Depends(require_company_member),
     db: Session = Depends(get_db),
 ):
+    if template_id is not None:
+        template = db.get(Template, template_id)
+        if template is None or template.company_id != user.company_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Template not found")
     content = await file.read()
     try:
         document = doc_service.create_document(
@@ -61,6 +67,7 @@ async def upload_document(
             uploaded_by_user_id=user.id,
             doc_type=doc_type,
         )
+        document.template_id = template_id
     except doc_service.DuplicateDocumentError as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -127,7 +134,7 @@ def get_document_markdown(
     path = storage.document_markdown_path(document.company_id, document.id)
     if not path.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Markdown not available yet")
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 @router.get("/documents/{document_id}/download")
@@ -142,6 +149,50 @@ def download_document_markdown(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Markdown not available yet")
     filename = f"{document.original_filename.rsplit('.', 1)[0]}.md"
     return FileResponse(path, media_type="text/markdown", filename=filename)
+
+
+@router.get("/documents/{document_id}/export/pdf")
+def export_document_pdf(
+    document_id: uuid.UUID,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from fastapi.responses import Response
+
+    from app.services.export import document_to_pdf
+
+    document = _get_document(db, user, document_id)
+    data = document_to_pdf(db, document)
+    stem = document.original_filename.rsplit(".", 1)[0]
+    return Response(
+        data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(stem)}.pdf"},
+    )
+
+
+@router.get("/documents/{document_id}/export/xlsx")
+def export_document_xlsx(
+    document_id: uuid.UUID,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    from urllib.parse import quote
+
+    from fastapi.responses import Response
+
+    from app.services.export import document_to_xlsx
+
+    document = _get_document(db, user, document_id)
+    data = document_to_xlsx(db, document)
+    stem = document.original_filename.rsplit(".", 1)[0]
+    return Response(
+        data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(stem)}.xlsx"},
+    )
 
 
 @router.post("/documents/{document_id}/reprocess", response_model=DocumentOut)
@@ -177,6 +228,56 @@ def delete_document(
                target_type="document", target_id=str(document_id))
     db.commit()
     publish_event(user.company_id, "documents.changed", {"action": "deleted"})
+
+
+@router.post("/documents/{document_id}/apply-template", response_model=DocumentOut)
+def apply_template_to_document(
+    document_id: uuid.UUID,
+    template_id: uuid.UUID | None = None,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """Assign (or clear, when template_id omitted) a template and extract
+    fields immediately from the stored OCR regions — no re-scan needed."""
+    from app.services.extraction import apply_template
+
+    document = _get_document(db, user, document_id)
+    if template_id is not None:
+        template = db.get(Template, template_id)
+        if template is None or template.company_id != user.company_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Template not found")
+    apply_template(db, document, template_id)
+    db.commit()
+    publish_event(user.company_id, f"document.{document.id}.status", {"status": "updated"})
+    return document
+
+
+@router.patch("/documents/{document_id}/extracted", response_model=DocumentOut)
+def update_extracted_values(
+    document_id: uuid.UUID,
+    values: dict[str, str | None],
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """Manual corrections to extracted field values (Fields tab edits)."""
+    document = _get_document(db, user, document_id)
+    if not document.extracted_json:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Document has no extraction result")
+    extracted = dict(document.extracted_json)
+    fields = [dict(field) for field in extracted.get("fields", [])]
+    for field in fields:
+        if field["key"] in values:
+            value = values[field["key"]]
+            field["value"] = value
+            field["missing"] = value is None or value == ""
+            field["confidence"] = 1.0  # human-entered
+    extracted["fields"] = fields
+    document.extracted_json = extracted
+    log_action(db, "document.extracted_edit", company_id=user.company_id, actor_user_id=user.id,
+               target_type="document", target_id=str(document.id))
+    db.commit()
+    publish_event(user.company_id, f"document.{document.id}.status", {"status": "updated"})
+    return document
 
 
 @router.get("/documents/{document_id}/pages", response_model=list[PageOut])

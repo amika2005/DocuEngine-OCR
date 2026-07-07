@@ -1,4 +1,4 @@
-"""End-to-end pipeline test: a generated Japanese-invoice PDF runs through
+﻿"""End-to-end pipeline test: a generated Japanese-invoice PDF runs through
 rasterize → ocr_page (mock engine) → assemble with eager Celery, producing
 markdown with tables and correct statuses."""
 
@@ -65,7 +65,7 @@ def test_pdf_flows_to_completed_markdown(db, seed):
         assert "請求書" in result.markdown  # mock engine emits invoice-shaped JA markdown
         assert result.layout_json["regions"]
 
-    markdown = storage.document_markdown_path(company.id, document.id).read_text()
+    markdown = storage.document_markdown_path(company.id, document.id).read_text(encoding="utf-8")
     assert markdown.count("| 品目 |") == 2  # one table per page
     assert "\n\n---\n\n" in markdown  # page separator
 
@@ -121,7 +121,9 @@ def test_engine_failure_records_reason_on_page(db, seed, monkeypatch):
     assert page.status == PageStatus.failed.value
     assert "No module named 'paddleocr'" in page.error_message
 
-    markdown = storage.document_markdown_path(refreshed.company_id, refreshed.id).read_text()
+    markdown = storage.document_markdown_path(refreshed.company_id, refreshed.id).read_text(
+        encoding="utf-8"
+    )
     assert "OCR failed — " in markdown
     assert "paddleocr" in markdown
 

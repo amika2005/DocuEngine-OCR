@@ -2,8 +2,9 @@ import { useCallback, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
-import type { Document } from '../../api/types';
+import type { Document, Template } from '../../api/types';
 import { useEvents } from '../../api/useEvents';
 import StatusBadge from '../../components/StatusBadge';
 
@@ -20,7 +21,13 @@ export default function ScanPage() {
   const { t } = useTranslation();
   const [items, setItems] = useState<ScanItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [templateId, setTemplateId] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
+
+  const { data: templates } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => api<Template[]>('/templates'),
+  });
 
   const patch = useCallback((key: string, update: Partial<ScanItem>) => {
     setItems((current) =>
@@ -65,8 +72,9 @@ export default function ScanPage() {
       ]);
       const form = new FormData();
       form.append('file', file);
+      const query = templateId ? `?template_id=${templateId}` : '';
       try {
-        const document = await api<Document>('/documents', { method: 'POST', body: form });
+        const document = await api<Document>(`/documents${query}`, { method: 'POST', body: form });
         patch(key, { state: 'tracked', document });
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
@@ -86,8 +94,29 @@ export default function ScanPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-bold">{t('scan.title')}</h1>
-      <p className="mb-4 text-sm text-slate-500">{t('scan.subtitle')}</p>
+      <h1 className="mb-1 text-2xl font-bold">{t('scan.title')}</h1>
+      <p className="mb-4 text-base text-slate-500">{t('scan.subtitle')}</p>
+
+      {templates && templates.length > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-600">{t('scan.template')}</label>
+          <select
+            value={templateId}
+            onChange={(event) => setTemplateId(event.target.value)}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
+          >
+            <option value="">{t('scan.noTemplate')}</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
+          {templateId && (
+            <span className="text-xs text-slate-400">{t('scan.templateHint')}</span>
+          )}
+        </div>
+      )}
 
       <div
         onDragOver={(event) => {
@@ -121,7 +150,7 @@ export default function ScanPage() {
 
       {items.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
+          <table className="w-full text-base">
             <thead className="bg-slate-100 text-left text-slate-600">
               <tr>
                 <th className="px-4 py-2">{t('documents.filename')}</th>

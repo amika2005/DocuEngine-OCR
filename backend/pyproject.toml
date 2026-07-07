@@ -21,6 +21,7 @@ dependencies = [
     "pillow>=10.3",
     "numpy>=1.26",
     "sse-starlette>=2.1",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,10 @@ dependencies = [
 # the worker Dockerfile installs it explicitly (see docker/worker install docs).
 ocr = [
     "paddleocr>=3.0",
+    "rapidocr>=3.9",
+    # Swap for onnxruntime-directml on Windows to enable OCR_USE_GPU=true.
+    "onnxruntime>=1.20",
+    "img2table>=1.4",
 ]
 dev = [
     "pytest>=8.2",

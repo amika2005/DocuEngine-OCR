@@ -56,6 +56,14 @@ def get_engine() -> OcrEngine:
             from app.ocr.ppocrv5 import PpOcrV5CpuEngine
 
             _engine = PpOcrV5CpuEngine()
+        elif name == "easyocr":
+            from app.ocr.easy_ocr import EasyOcrEngine
+
+            _engine = EasyOcrEngine()
+        elif name == "rapidocr":
+            from app.ocr.rapid_ocr import RapidOcrEngine
+
+            _engine = RapidOcrEngine()
         elif name == "mock":
             from app.ocr.mock import MockEngine
 

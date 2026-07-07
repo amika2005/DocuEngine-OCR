@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -78,9 +79,9 @@ export default function DocumentsPage() {
       </div>
 
       {view === 'list' ? (
-        <ListView documents={data?.items ?? []} empty={data?.items.length === 0} />
+        <ListView documents={data?.items ?? []} empty={data?.items.length === 0} onDelete={refresh} />
       ) : (
-        <GridView documents={data?.items ?? []} empty={data?.items.length === 0} />
+        <GridView documents={data?.items ?? []} empty={data?.items.length === 0} onDelete={refresh} />
       )}
 
       {totalPages > 1 && (
@@ -100,8 +101,18 @@ export default function DocumentsPage() {
   );
 }
 
-function ListView({ documents, empty }: { documents: Document[]; empty?: boolean }) {
+function ListView({ documents, empty, onDelete }: { documents: Document[]; empty?: boolean; onDelete: () => void }) {
   const { t } = useTranslation();
+
+  async function handleDelete(id: string) {
+    if (!confirm(t('common.confirmDelete') || 'Are you sure you want to delete this document?')) return;
+    try {
+      await api(`/documents/${id}`, { method: 'DELETE' });
+      onDelete();
+    } catch (e) {
+      alert('Failed to delete document');
+    }
+  }
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
       <table className="w-full text-sm">
@@ -111,6 +122,7 @@ function ListView({ documents, empty }: { documents: Document[]; empty?: boolean
             <th className="px-4 py-2">{t('documents.status')}</th>
             <th className="px-4 py-2">{t('documents.pages')}</th>
             <th className="px-4 py-2">{t('documents.date')}</th>
+            <th className="px-4 py-2 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -126,11 +138,20 @@ function ListView({ documents, empty }: { documents: Document[]; empty?: boolean
               </td>
               <td className="px-4 py-2">{doc.page_count || '—'}</td>
               <td className="px-4 py-2">{new Date(doc.created_at).toLocaleString()}</td>
+              <td className="px-4 py-2 text-right">
+                <button
+                  onClick={() => handleDelete(doc.id)}
+                  className="rounded p-1 text-red-500 hover:bg-red-50 hover:text-red-700"
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </td>
             </tr>
           ))}
           {empty && (
             <tr>
-              <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                 {t('documents.empty')}
               </td>
             </tr>
@@ -141,8 +162,20 @@ function ListView({ documents, empty }: { documents: Document[]; empty?: boolean
   );
 }
 
-function GridView({ documents, empty }: { documents: Document[]; empty?: boolean }) {
+function GridView({ documents, empty, onDelete }: { documents: Document[]; empty?: boolean; onDelete: () => void }) {
   const { t } = useTranslation();
+
+  async function handleDelete(event: React.MouseEvent, id: string) {
+    event.preventDefault(); // Prevent navigating to document detail
+    if (!confirm(t('common.confirmDelete') || 'Are you sure you want to delete this document?')) return;
+    try {
+      await api(`/documents/${id}`, { method: 'DELETE' });
+      onDelete();
+    } catch (e) {
+      alert('Failed to delete document');
+    }
+  }
+
   if (empty) {
     return (
       <p className="rounded-lg border border-slate-200 bg-white py-12 text-center text-slate-400">
@@ -168,9 +201,18 @@ function GridView({ documents, empty }: { documents: Document[]; empty?: boolean
             </p>
             <div className="flex items-center justify-between">
               <StatusBadge status={doc.status} />
-              <span className="text-xs text-slate-400">
-                {new Date(doc.created_at).toLocaleDateString()}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">
+                  {new Date(doc.created_at).toLocaleDateString()}
+                </span>
+                <button
+                  onClick={(e) => handleDelete(e, doc.id)}
+                  className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           </div>
         </Link>

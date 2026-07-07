@@ -6,6 +6,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDMixin
+from app.models.company import JSONB
 
 
 class DocType(str, enum.Enum):
@@ -74,6 +75,12 @@ class Document(Base, UUIDMixin, TimestampMixin):
     storage_path: Mapped[str] = mapped_column(sa.String(1024), nullable=False)
     page_count: Mapped[int] = mapped_column(sa.Integer, default=0, nullable=False)
     doc_type: Mapped[str] = mapped_column(sa.String(32), default=DocType.other.value, nullable=False)
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.Uuid, sa.ForeignKey("templates.id", ondelete="SET NULL"), index=True
+    )
+    # Field extraction output when a template is assigned:
+    # {template_name, fields: [{key,label,type,required,value,confidence,page_number,bbox,missing}]}
+    extracted_json: Mapped[dict | None] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(
         sa.String(32), default=DocumentStatus.uploaded.value, nullable=False
     )

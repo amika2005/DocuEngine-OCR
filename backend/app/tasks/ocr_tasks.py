@@ -48,6 +48,10 @@ def rasterize_document(self, document_id: str) -> None:
         if document is None:
             return
         document.status = DocumentStatus.processing.value
+        # Idempotent: a re-delivered or self-healed run replaces any pages a
+        # previous (possibly killed) run left behind instead of duplicating.
+        for stale in db.scalars(select(Page).where(Page.document_id == document.id)):
+            db.delete(stale)
         db.commit()
 
         pages_dir = storage.document_dir(document.company_id, document.id) / "pages"
@@ -89,7 +93,9 @@ def rasterize_document(self, document_id: str) -> None:
         db.close()
 
 
-@celery_app.task(bind=True, max_retries=2, soft_time_limit=180)
+# Generous limit: the medium PP-OCRv6 model takes ~40s/page on CPU, and the
+# first task after a fresh install also downloads the model weights.
+@celery_app.task(bind=True, max_retries=2, soft_time_limit=600)
 def ocr_page(self, page_id: str) -> None:
     db = get_sessionmaker()()
     try:
@@ -116,6 +122,40 @@ def ocr_page(self, page_id: str) -> None:
 
         elapsed_ms = int((time.monotonic() - started) * 1000)
         engine = get_engine()
+        avg_confidence = result.avg_confidence  # text-only, before adding codes
+
+        # Locate barcodes/QR on the page (offline geometry — not decoded) and
+        # embed each as an inline image region, so the code appears as a picture
+        # inside the markdown result at its reading-order position.
+        try:
+            from app.ocr.barcodes import detect_codes
+            from app.ocr.engine import Region
+
+            for code in detect_codes(Path(page.image_path)):
+                if not code.data_uri:
+                    continue
+                alt = "QR code" if code.kind == "qr" else "barcode"
+                result.regions.append(
+                    Region(
+                        bbox=code.bbox,
+                        kind="code",
+                        markdown=f"![{alt}]({code.data_uri})",
+                        confidence=1.0,
+                    )
+                )
+        except Exception:
+            pass  # code detection must never fail the page
+
+        regions_json = [
+            {
+                "bbox": list(r.bbox),
+                "kind": r.kind,
+                "markdown": r.markdown,
+                "confidence": r.confidence,
+                "vertical": r.vertical,
+            }
+            for r in result.regions
+        ]
 
         db.execute(
             OcrResult.__table__.update()
@@ -128,19 +168,8 @@ def ocr_page(self, page_id: str) -> None:
                 company_id=page.company_id,
                 model_version_id=_active_model_version_id(db, page.company_id),
                 markdown=assemble.page_markdown(result),
-                layout_json={
-                    "regions": [
-                        {
-                            "bbox": list(r.bbox),
-                            "kind": r.kind,
-                            "markdown": r.markdown,
-                            "confidence": r.confidence,
-                            "vertical": r.vertical,
-                        }
-                        for r in result.regions
-                    ]
-                },
-                avg_confidence=result.avg_confidence,
+                layout_json={"regions": regions_json},
+                avg_confidence=avg_confidence,
                 engine=engine.name,
                 is_current=True,
             )
@@ -190,6 +219,15 @@ def assemble_document(document_id: str) -> None:
             )[:2000]
         document.model_version_id = _active_model_version_id(db, document.company_id)
         document.completed_at = _utcnow()
+
+        # Template field extraction runs off the stored regions — cheap CPU work.
+        if document.template_id is not None:
+            from app.services.extraction import extract_document
+
+            try:
+                extract_document(db, document)
+            except Exception:
+                pass  # extraction must never fail the document
         db.commit()
 
         _bump_batch(db, document)

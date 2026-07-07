@@ -1,21 +1,24 @@
 """Turns engine regions into final Markdown.
 
-Reading order rules:
-- Horizontal (yokogaki) regions read top-to-bottom, then left-to-right within a band.
-- Vertical (tategaki) regions — common in Japanese business letters — read
-  right-to-left, then top-to-bottom within a column.
-- Mixed pages are ordered band-by-band; vertical regions inside a band sort
-  right-to-left while horizontal ones sort left-to-right.
+Reading order: recursive XY-cut. The page is split into horizontal strips at
+significant vertical whitespace; a strip that contains side-by-side blocks
+(e.g. client address on the left, issuer address on the right) is split into
+columns at a wide horizontal gap and each column is read completely,
+top-to-bottom, before moving to the next. Strips that don't split cleanly
+fall back to band ordering (left-to-right within a visual row; right-to-left
+for vertical/tategaki text).
 """
 
 import re
 from html.parser import HTMLParser
+from statistics import median
 
 from app.ocr.engine import PageResult, Region
 
 # Regions whose vertical centers are within this fraction of page height are
 # treated as one horizontal band (side-by-side content).
 _BAND_TOLERANCE = 0.04
+_MAX_CUT_DEPTH = 6
 
 PAGE_SEPARATOR = "\n\n---\n\n"
 
@@ -29,13 +32,65 @@ def page_markdown(result: PageResult) -> str:
 
 
 def order_regions(regions: list[Region]) -> list[Region]:
+    if not regions:
+        return []
+    return _xy_cut(list(regions), depth=0)
+
+
+def _split_on_gaps(regions: list[Region], axis: int, min_gap: float) -> list[list[Region]]:
+    """Group regions whose projections onto `axis` (0=x, 1=y) are separated by
+    whitespace wider than min_gap."""
+    items = sorted(regions, key=lambda r: r.bbox[axis])
+    groups: list[list[Region]] = [[items[0]]]
+    group_end = items[0].bbox[axis + 2]
+    for region in items[1:]:
+        if region.bbox[axis] - group_end > min_gap:
+            groups.append([region])
+        else:
+            groups[-1].append(region)
+        group_end = max(group_end, region.bbox[axis + 2])
+    return groups
+
+
+def _xy_cut(regions: list[Region], depth: int) -> list[Region]:
+    if len(regions) <= 1 or depth >= _MAX_CUT_DEPTH:
+        return _band_sort(regions)
+
+    line_height = median(r.bbox[3] - r.bbox[1] for r in regions)
+
+    # 1. Horizontal strips at clear vertical whitespace (paragraph breaks).
+    strips = _split_on_gaps(regions, axis=1, min_gap=line_height * 0.8)
+    if len(strips) > 1:
+        ordered: list[Region] = []
+        for strip in strips:
+            ordered.extend(_xy_cut(strip, depth + 1))
+        return ordered
+
+    # 2. Columns at a wide horizontal gap — read each column fully before the
+    #    next, so left/right address blocks don't interleave line by line.
+    width = max(r.bbox[2] for r in regions) - min(r.bbox[0] for r in regions)
+    columns = _split_on_gaps(regions, axis=0, min_gap=max(width * 0.06, line_height * 1.5))
+    if len(columns) > 1:
+        ordered = []
+        for column in columns:
+            ordered.extend(_xy_cut(column, depth + 1))
+        return ordered
+
+    # 3. Nothing splits — plain visual-row ordering.
+    return _band_sort(regions)
+
+
+def _band_sort(regions: list[Region]) -> list[Region]:
+    """Original band ordering: top-to-bottom rows, left-to-right within a row
+    (right-to-left when the row is mostly vertical/tategaki text)."""
+    if not regions:
+        return []
     page_height = max((r.bbox[3] for r in regions), default=1.0) or 1.0
     tolerance = page_height * _BAND_TOLERANCE
 
     def center_y(r: Region) -> float:
         return (r.bbox[1] + r.bbox[3]) / 2
 
-    # Group into horizontal bands of visually-aligned regions.
     bands: list[list[Region]] = []
     for region in sorted(regions, key=center_y):
         if bands and abs(center_y(region) - center_y(bands[-1][0])) <= tolerance:

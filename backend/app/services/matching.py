@@ -54,7 +54,7 @@ def _candidate_units(markdown: str) -> list[str]:
 
     for line in markdown.splitlines():
         stripped = line.strip().lstrip("#").strip()
-        if stripped and not stripped.startswith("|"):
+        if stripped and not stripped.startswith("|") and not stripped.startswith("!["):
             add_with_tokens(stripped)
     for row in extract_table_cells(markdown):
         for cell in row:
@@ -224,7 +224,7 @@ def link_match(db: Session, match: MasterMatch, user_id: uuid.UUID) -> None:
     match.linked_at = datetime.now(timezone.utc)
     db.flush()
 
-    _rewrite_document_markdown(db, match)
+    rewrite_document_markdown(db, match.page_id)
     db.commit()
 
 
@@ -233,8 +233,10 @@ def dismiss_match(db: Session, match: MasterMatch) -> None:
     db.commit()
 
 
-def _rewrite_document_markdown(db: Session, match: MasterMatch) -> None:
-    page = db.get(Page, match.page_id)
+def rewrite_document_markdown(db: Session, page_id: uuid.UUID) -> None:
+    """Reassemble the document-level markdown file after a page's result
+    changed (master link or an inline result edit)."""
+    page = db.get(Page, page_id)
     if page is None:
         return
     document = db.get(Document, page.document_id)
@@ -261,9 +263,9 @@ _SLUG_RE = re.compile(r"[^a-z0-9_]")
 
 
 def validate_fields(fields: list[dict]) -> list[dict]:
-    """Normalize/validate a master type's field definitions."""
-    if not fields:
-        raise ValueError("at least one field is required")
+    """Normalize/validate a master type's field definitions. An empty list is
+    allowed — the fields are then inferred from the header row of the first
+    bulk import."""
     cleaned = []
     seen_keys: set[str] = set()
     for field in fields:
@@ -283,6 +285,6 @@ def validate_fields(fields: list[dict]) -> list[dict]:
                 "required": bool(field.get("required", False)),
             }
         )
-    if not any(field["matchable"] for field in cleaned):
+    if cleaned and not any(field["matchable"] for field in cleaned):
         raise ValueError("at least one field must be matchable")
     return cleaned

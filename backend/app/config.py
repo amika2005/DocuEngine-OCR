@@ -24,7 +24,15 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     models_dir: Path = Path("./models")
 
-    ocr_engine: str = "mock"  # paddleocr-vl | ppocrv5-cpu | mock
+    ocr_engine: str = "mock"  # paddleocr-vl | ppocrv5-cpu | rapidocr | easyocr | mock
+    ocr_model_size: str = "medium"  # rapidocr PP-OCRv6 variant: tiny | small | medium
+    # GPU acceleration for the rapidocr engine via DirectML (Windows; any GPU).
+    # Requires onnxruntime-directml instead of onnxruntime; falls back to CPU
+    # automatically when the provider is unavailable.
+    ocr_use_gpu: bool = False
+    # Camera-photo enhancement (perspective + illumination) for image inputs.
+    # PDFs are always left on the deskew-only path.
+    ocr_photo_enhance: bool = True
     ocr_dpi: int = 200
     ocr_max_long_edge: int = 2600
 

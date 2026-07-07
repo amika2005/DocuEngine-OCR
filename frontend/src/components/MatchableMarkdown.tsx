@@ -1,7 +1,9 @@
 import { Children, isValidElement, type ReactNode } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { MasterMatch } from '../api/types';
+
+const defaultUrl = defaultUrlTransform;
 
 /** Markdown renderer that wraps master-match text in clickable <mark> spans:
  *  green = exact/linked (✓), amber = fuzzy (~). Matches are injected by
@@ -77,6 +79,9 @@ export default function MatchableMarkdown({
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      // Allow the embedded barcode/QR crops (data: image URIs); react-markdown
+      // strips data: by default. Keep the default guard for everything else.
+      urlTransform={(url) => (url.startsWith('data:image/') ? url : defaultUrl(url))}
       components={{
         p: withHighlights('p'),
         li: withHighlights('li'),
@@ -85,6 +90,13 @@ export default function MatchableMarkdown({
         h1: withHighlights('h1'),
         h2: withHighlights('h2'),
         h3: withHighlights('h3'),
+        img: ({ node: _node, alt, ...props }) => (
+          <img
+            {...props}
+            alt={alt ?? 'code'}
+            className="my-1 inline-block max-h-32 rounded border border-slate-200 bg-white p-1"
+          />
+        ),
       }}
     >
       {markdown}

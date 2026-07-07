@@ -1,11 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link2, X } from 'lucide-react';
 import type { MasterMatch } from '../api/types';
 
-/** Popover shown when a highlighted match is clicked: the master record's
- *  data with リンク / 却下 actions. Linking replaces the OCR text with the
- *  trusted master value. */
+/** Popover shown when a highlighted match is clicked: banner with the match
+ *  verdict, the OCR→master correction, and the full master record. Linking
+ *  replaces the OCR text with the trusted master value. */
 export default function MatchPopup({
   match,
   anchor,
@@ -39,66 +38,108 @@ export default function MatchPopup({
   }, [anchor, onClose]);
 
   const rect = anchor.getBoundingClientRect();
+  const linked = match.status === 'linked';
+  const exact = match.kind === 'exact' || linked;
   const differs = match.matched_text !== match.master_value;
+  // A friendly one-line identity for the record: its first two values.
+  const recordSummary = Object.values(match.record_data).filter(Boolean).slice(0, 2).join(' — ');
 
   return (
     <div
       ref={popupRef}
-      className="fixed z-50 w-80 rounded-lg border border-slate-200 bg-white p-4 shadow-xl"
+      className="fixed z-50 w-[26rem] max-w-[95vw] rounded-xl border border-slate-200 bg-white p-4 shadow-2xl"
       style={{
-        top: Math.min(rect.bottom + 6, window.innerHeight - 320),
-        left: Math.min(rect.left, window.innerWidth - 340),
+        top: Math.min(rect.bottom + 8, window.innerHeight - 400),
+        left: Math.min(rect.left, window.innerWidth - 440),
       }}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium">
-          {match.master_type_name}
+      {/* Verdict banner */}
+      <div
+        className={`mb-3 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium ${
+          exact
+            ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+            : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+        }`}
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5">
+          {exact ? (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          ) : (
+            <path strokeLinecap="round" d="M4 12c2-3 4-3 6 0s4 3 6 0" />
+          )}
+        </svg>
+        <span className="min-w-0 truncate">
+          {exact ? t('masters.exactMatch') : t('masters.fuzzyMatch')} : {recordSummary}
         </span>
-        <span className="text-xs text-slate-500">{match.field_label}</span>
-        <span className="ml-auto text-xs tabular-nums text-slate-400">
+        <span
+          className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums ${
+            exact ? 'bg-emerald-100' : 'bg-amber-100'
+          }`}
+        >
           {(match.score * 100).toFixed(0)}%
         </span>
       </div>
 
+      <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+        <span className="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+          {match.master_type_name}
+        </span>
+        <span>
+          {t('masters.matchedField')}: <span className="font-medium text-slate-700">{match.field_label}</span>
+        </span>
+      </div>
+
+      {/* OCR → master correction preview */}
       {differs && (
-        <div className="mb-2 rounded bg-slate-50 p-2 text-xs">
+        <div className="mb-3 rounded-lg bg-slate-50 p-2.5 text-sm">
+          <p className="text-xs text-slate-400">{t('masters.ocrText')}</p>
           <p className="text-red-700 line-through">{match.matched_text}</p>
-          <p className="font-medium text-green-700">→ {match.master_value}</p>
+          <p className="mt-1 text-xs text-slate-400">{t('masters.masterValue')}</p>
+          <p className="font-medium text-emerald-700">{match.master_value}</p>
         </div>
       )}
 
-      <table className="mb-3 w-full text-xs">
-        <tbody>
-          {Object.entries(match.record_data).map(([key, value]) => (
-            <tr key={key} className="border-t border-slate-100 first:border-t-0">
-              <td className="py-1 pr-2 font-medium text-slate-500">{key}</td>
-              <td className={`py-1 ${key === match.field_key ? 'font-medium text-green-700' : ''}`}>
-                {value || '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Full master record */}
+      <div className="mb-3 overflow-hidden rounded-lg border border-slate-100">
+        <table className="w-full text-sm">
+          <tbody>
+            {Object.entries(match.record_data).map(([key, value]) => (
+              <tr key={key} className="border-t border-slate-100 first:border-t-0">
+                <td className="w-32 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500">
+                  {match.field_labels[key] ?? key}
+                </td>
+                <td
+                  className={`px-3 py-1.5 ${
+                    key === match.field_key ? 'font-semibold text-emerald-700' : 'text-slate-800'
+                  }`}
+                >
+                  {value || '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      {match.status === 'linked' ? (
-        <p className="text-center text-xs font-medium text-green-700">
-          <Link2 className="mr-1 inline h-3.5 w-3.5" strokeWidth={1.8} /> {t('masters.linked')}
+      {linked ? (
+        <p className="rounded-lg bg-emerald-50 py-2 text-center text-sm font-medium text-emerald-700">
+          {t('masters.linked')}
         </p>
       ) : (
         <div className="flex gap-2">
           <button
             onClick={onLink}
             disabled={busy}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded bg-green-600 py-1.5 text-sm text-white hover:bg-green-500 disabled:opacity-50"
+            className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
           >
-            <Link2 className="h-4 w-4" strokeWidth={1.8} /> {t('masters.link')}
+            {t('masters.link')}
           </button>
           <button
             onClick={onDismiss}
             disabled={busy}
-            className="flex items-center gap-1 rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
           >
-            <X className="h-3.5 w-3.5" strokeWidth={1.8} /> {t('masters.dismiss')}
+            {t('masters.dismiss')}
           </button>
         </div>
       )}

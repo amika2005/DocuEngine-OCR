@@ -67,8 +67,23 @@ def create_correction(
         status=CorrectionStatus.draft.value,
     )
     db.add(correction)
+
+    # A whole-page correction is applied immediately: the visible result and
+    # the assembled document markdown change to what the user typed. The
+    # correction row keeps the original for the training flywheel.
+    if body.region_index is None and body.corrected_markdown != original:
+        from app.services.matching import rewrite_document_markdown
+
+        result.markdown = body.corrected_markdown
+        db.flush()
+        rewrite_document_markdown(db, page.id)
+
     db.commit()
     publish_event(user.company_id, "corrections.changed", {"action": "created"})
+    if body.region_index is None:
+        publish_event(
+            user.company_id, f"document.{page.document_id}.status", {"status": "updated"}
+        )
     return correction
 
 

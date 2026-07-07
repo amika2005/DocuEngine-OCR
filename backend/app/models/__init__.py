@@ -13,6 +13,7 @@ from app.models.master import (
 from app.models.model_version import ModelKind, ModelVersion, ModelVersionStatus
 from app.models.ocr_result import OcrResult
 from app.models.page import Page, PageStatus
+from app.models.template import Template
 from app.models.training_run import TrainingRun, TrainingRunStatus
 from app.models.user import User, UserRole
 
@@ -38,6 +39,7 @@ __all__ = [
     "OcrResult",
     "Page",
     "PageStatus",
+    "Template",
     "TrainingRun",
     "TrainingRunStatus",
     "User",

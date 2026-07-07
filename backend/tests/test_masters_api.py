@@ -101,7 +101,8 @@ def test_masters_tenant_isolation(client, auth, seed):
 
 def test_csv_import(client, auth, seed):
     master_type = _create_type(client, auth)
-    csv_content = "﻿name,price\nトナー TN-29J,8000\nコピー用紙 A4,500\nトナー TN-29J,8000\n,\n"
+    # Trailing fully-empty row is ignored; the price-only row errors (name required).
+    csv_content = "﻿name,price\nトナー TN-29J,8000\nコピー用紙 A4,500\nトナー TN-29J,8000\n,300\n,\n"
     response = client.post(
         f"/api/v1/masters/types/{master_type['id']}/import",
         headers=auth("admin_a"),
@@ -111,7 +112,7 @@ def test_csv_import(client, auth, seed):
     body = response.json()
     assert body["created"] == 2
     assert body["skipped"] == 1        # duplicate row
-    assert len(body["errors"]) == 1   # empty row fails the required-field check
+    assert len(body["errors"]) == 1   # price-only row fails the required-field check
 
     bad_header = client.post(
         f"/api/v1/masters/types/{master_type['id']}/import",

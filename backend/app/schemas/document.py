@@ -12,6 +12,8 @@ class DocumentOut(BaseModel):
     page_count: int
     byte_size: int
     batch_id: uuid.UUID | None
+    template_id: uuid.UUID | None = None
+    extracted_json: dict | None = None
     error_message: str | None
     created_at: datetime
     completed_at: datetime | None

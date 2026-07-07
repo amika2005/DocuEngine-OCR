@@ -1,9 +1,9 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, FileUp } from 'lucide-react';
 import { api, ApiError } from '../../api/client';
 import { useLiveInvalidate } from '../../api/useEvents';
+import MasterImportWizard from '../../components/MasterImportWizard';
 import type { MasterField, MasterRecord, MasterRecordList, MasterType } from '../../api/types';
 
 const EMPTY_FIELD: MasterField = { key: '', label: '', matchable: true, required: false };
@@ -13,6 +13,7 @@ export default function MastersPage() {
   const queryClient = useQueryClient();
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [showTypeForm, setShowTypeForm] = useState(false);
+  const [importFor, setImportFor] = useState<string | 'ask' | null>(null);
   const [error, setError] = useState('');
 
   const { data: types } = useQuery({
@@ -31,11 +32,17 @@ export default function MastersPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center">
+      <div className="mb-4 flex items-center gap-2">
         <h1 className="text-xl font-bold">{t('masters.title')}</h1>
         <button
+          onClick={() => setImportFor('ask')}
+          className="ml-auto rounded border border-slate-300 bg-white px-4 py-1.5 text-sm hover:bg-slate-50"
+        >
+          {t('masters.importCsv')}
+        </button>
+        <button
           onClick={() => setShowTypeForm((value) => !value)}
-          className="ml-auto rounded bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700"
+          className="rounded bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700"
         >
           {t('masters.addType')}
         </button>
@@ -83,9 +90,27 @@ export default function MastersPage() {
         </aside>
 
         <div className="min-w-0 flex-1">
-          {selected && <RecordsPanel type={selected} onDeleteType={() => deleteType(selected)} />}
+          {selected && (
+            <RecordsPanel
+              type={selected}
+              onDeleteType={() => deleteType(selected)}
+              onImport={() => setImportFor(selected.id)}
+            />
+          )}
         </div>
       </div>
+
+      {importFor && (
+        <MasterImportWizard
+          types={types ?? []}
+          initialTypeId={importFor === 'ask' ? null : importFor}
+          onDone={() => {
+            queryClient.invalidateQueries({ queryKey: ['master-records'] });
+            queryClient.invalidateQueries({ queryKey: ['master-types'] });
+          }}
+          onClose={() => setImportFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -93,9 +118,9 @@ export default function MastersPage() {
 function TypeForm({ onDone, onError }: { onDone: () => void; onError: (msg: string) => void }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
-  const [fields, setFields] = useState<MasterField[]>([
-    { key: 'name', label: '', matchable: true, required: true },
-  ]);
+  // Starting with no fields is fine — the first bulk import derives the
+  // columns from the file's header row.
+  const [fields, setFields] = useState<MasterField[]>([]);
 
   function patchField(index: number, update: Partial<MasterField>) {
     setFields((current) =>
@@ -168,31 +193,37 @@ function TypeForm({ onDone, onError }: { onDone: () => void; onError: (msg: stri
               />
               {t('masters.required')}
             </label>
-            {fields.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setFields((current) => current.filter((_, i) => i !== index))}
-                className="text-xs text-red-600 hover:underline"
-              >
-                {t('common.delete')}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setFields((current) => current.filter((_, i) => i !== index))}
+              className="text-xs text-red-600 hover:underline"
+            >
+              {t('common.delete')}
+            </button>
           </div>
         ))}
       </div>
-      <p className="mt-2 text-xs text-slate-400">{t('masters.matchableHint')}</p>
+      <p className="mt-2 text-xs text-slate-400">
+        {fields.length === 0 ? t('masters.noFieldsHint') : t('masters.matchableHint')}
+      </p>
     </form>
   );
 }
 
-function RecordsPanel({ type, onDeleteType }: { type: MasterType; onDeleteType: () => void }) {
+function RecordsPanel({
+  type,
+  onDeleteType,
+  onImport,
+}: {
+  type: MasterType;
+  onDeleteType: () => void;
+  onImport: () => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<MasterRecord | 'new' | null>(null);
-  const [importSummary, setImportSummary] = useState('');
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const { data } = useQuery({
     queryKey: ['master-records', type.id, page, search],
@@ -205,37 +236,6 @@ function RecordsPanel({ type, onDeleteType }: { type: MasterType; onDeleteType: 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ['master-records'] });
     queryClient.invalidateQueries({ queryKey: ['master-types'] });
-  }
-
-  async function onImport(files: FileList | null) {
-    if (!files?.length) return;
-    const form = new FormData();
-    form.append('file', files[0]);
-    try {
-      const result = await api<{ created: number; skipped: number; errors: string[] }>(
-        `/masters/types/${type.id}/import`,
-        { method: 'POST', body: form },
-      );
-      setImportSummary(
-        t('masters.importResult', { created: result.created, skipped: result.skipped }) +
-          (result.errors.length ? ` / errors: ${result.errors.join('; ')}` : ''),
-      );
-      refresh();
-    } catch (error) {
-      setImportSummary(String((error as ApiError).message));
-    } finally {
-      if (fileInput.current) fileInput.current.value = '';
-    }
-  }
-
-  function downloadTemplate() {
-    const header = type.fields.map((field) => field.key).join(',');
-    const blob = new Blob([`﻿${header}\n`], { type: 'text/csv' });
-    const anchor = document.createElement('a');
-    anchor.href = URL.createObjectURL(blob);
-    anchor.download = `${type.name}-template.csv`;
-    anchor.click();
-    URL.revokeObjectURL(anchor.href);
   }
 
   async function deleteRecord(record: MasterRecord) {
@@ -259,29 +259,17 @@ function RecordsPanel({ type, onDeleteType }: { type: MasterType; onDeleteType: 
           }}
           className="ml-auto w-56 rounded border border-slate-300 px-3 py-1.5 text-sm"
         />
-        <input
-          ref={fileInput}
-          type="file"
-          accept=".csv"
-          className="hidden"
-          onChange={(event) => onImport(event.target.files)}
-        />
         <button
-          onClick={() => fileInput.current?.click()}
-          className="flex items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-        >
-          <FileUp className="h-4 w-4" strokeWidth={1.8} /> {t('masters.importCsv')}
-        </button>
-        <button
-          onClick={downloadTemplate}
+          onClick={onImport}
           className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-          title={t('masters.csvTemplate')}
         >
-          <Download className="h-4 w-4" strokeWidth={1.8} />
+          {t('masters.importCsv')}
         </button>
         <button
           onClick={() => setEditing('new')}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
+          disabled={type.fields.length === 0}
+          title={type.fields.length === 0 ? t('masters.noFieldsHint') : undefined}
+          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {t('masters.addRecord')}
         </button>
@@ -289,12 +277,6 @@ function RecordsPanel({ type, onDeleteType }: { type: MasterType; onDeleteType: 
           {t('common.delete')}
         </button>
       </div>
-
-      {importSummary && (
-        <p className="border-b border-slate-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-          {importSummary}
-        </p>
-      )}
 
       {editing && (
         <RecordForm
@@ -341,7 +323,7 @@ function RecordsPanel({ type, onDeleteType }: { type: MasterType; onDeleteType: 
           {data?.items.length === 0 && (
             <tr>
               <td colSpan={type.fields.length + 1} className="px-3 py-8 text-center text-slate-400">
-                {t('masters.noRecords')}
+                {type.fields.length === 0 ? t('masters.noFieldsHint') : t('masters.noRecords')}
               </td>
             </tr>
           )}

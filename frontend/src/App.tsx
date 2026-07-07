@@ -11,6 +11,7 @@ import CorrectionEditorPage from './pages/user/CorrectionEditorPage';
 import CorrectionsPage from './pages/user/CorrectionsPage';
 import CompanyDashboardPage from './pages/company-admin/CompanyDashboardPage';
 import MastersPage from './pages/company-admin/MastersPage';
+import TemplatesPage from './pages/company-admin/TemplatesPage';
 import UsersPage from './pages/company-admin/UsersPage';
 import DevicesPage from './pages/company-admin/DevicesPage';
 import TrainingPage from './pages/company-admin/TrainingPage';
@@ -52,6 +53,7 @@ export default function App() {
         {me.role === 'company_admin' && (
           <>
             <Route path="/company/masters" element={<MastersPage />} />
+            <Route path="/company/templates" element={<TemplatesPage />} />
             <Route path="/company/users" element={<UsersPage />} />
             <Route path="/company/devices" element={<DevicesPage />} />
             <Route path="/company/training" element={<TrainingPage />} />

@@ -6,7 +6,7 @@ import io
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -78,6 +78,7 @@ class MatchOut(BaseModel):
     matched_text: str
     master_value: str
     record_data: dict
+    field_labels: dict[str, str]  # key → human label, for the detail popup
     score: float
     kind: str
     status: str
@@ -295,29 +296,181 @@ def delete_record(
     publish_event(admin.company_id, "masters.changed", {"action": "record_deleted"})
 
 
-@router.post("/types/{type_id}/import")
-async def import_csv(
+def _infer_fields(header: list[str]) -> list[dict]:
+    """Build field definitions from an import file's header row, for master
+    types created with no fields (name only). ASCII headers become the key
+    directly; Japanese headers get a generated key with the text as label."""
+    import re
+
+    fields: list[dict] = []
+    seen: set[str] = set()
+    for index, cell in enumerate(header, start=1):
+        label = cell.strip()
+        if not label:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9_\- ]+", label):
+            key = re.sub(r"[^a-z0-9_]", "_", label.lower()).strip("_") or f"col_{index}"
+        else:
+            key = f"col_{index}"
+        if key in seen:
+            key = f"{key}_{index}"
+        seen.add(key)
+        fields.append({"key": key, "label": label, "matchable": True, "required": False})
+    return fields
+
+
+_NUMBERISH = None  # compiled lazily
+
+
+def _is_numberish(value: str) -> bool:
+    import re
+
+    global _NUMBERISH
+    if _NUMBERISH is None:
+        _NUMBERISH = re.compile(r"[\d,.\-¥￥%/年月日: ]+")
+    return bool(value) and _NUMBERISH.fullmatch(value) is not None
+
+
+def _guess_has_header(rows: list[list[str]], master_type: MasterType) -> bool:
+    """Heuristic: does the first row look like a header or like data?
+
+    A plain product list without a header row must not lose its first item,
+    so default to "data" unless something clearly marks row 1 as a header.
+    """
+    first = rows[0]
+    # 1. A cell matches the type's field keys/labels → definitely a header.
+    if master_type.fields:
+        known = {field["key"] for field in master_type.fields} | {
+            field["label"] for field in master_type.fields
+        }
+        if any(cell in known for cell in first):
+            return True
+    # 2. A column is numeric in the data rows but not in row 1 → header.
+    sample = rows[1:9]
+    if sample:
+        for col, cell in enumerate(first):
+            values = [row[col] for row in sample if col < len(row) and row[col]]
+            if cell and values and not _is_numberish(cell) and all(
+                _is_numberish(v) for v in values
+            ):
+                return True
+    # 3. Row 1 uses typical header words (商品名, コード, 単価, name, code …).
+    hints = (
+        "名", "コード", "番号", "単価", "価格", "数量", "金額", "日付", "住所",
+        "name", "code", "price", "amount", "qty", "id", "no.", "email", "tel",
+    )
+    if any(hint in cell.lower() for cell in first if cell for hint in hints):
+        return True
+    return False
+
+
+def _read_tabular(filename: str, raw: bytes) -> list[list[str]]:
+    """Rows (header first) from a .csv or .xlsx upload.
+
+    CSVs from Japanese Excel are often Shift-JIS; try UTF-8 first and fall
+    back to cp932 so 顧客名-style headers survive.
+    """
+    if filename.lower().endswith((".xlsx", ".xlsm")):
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Excel import requires the 'openpyxl' package on the server",
+            )
+        workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+        sheet = workbook.active
+        rows = [
+            ["" if cell is None else str(cell).strip() for cell in row]
+            for row in sheet.iter_rows(values_only=True)
+        ]
+        workbook.close()
+        return rows
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("cp932", errors="replace")
+    return [
+        [cell.strip() for cell in row]
+        for row in csv.reader(io.StringIO(text))
+    ]
+
+
+@router.post("/types/{type_id}/import/preview")
+async def preview_import(
     type_id: uuid.UUID,
     file: UploadFile,
     admin: User = Depends(require_company_admin),
     db: Session = Depends(get_db),
 ):
-    """CSV bulk import. Header row = field keys (as defined on the type).
-    Duplicate rows (identical data to an existing record) are skipped."""
+    """First rows of the file + a guess whether row 1 is a header, so the UI
+    can ask the user to confirm before anything is written."""
     master_type = _get_type(db, admin, type_id)
     raw = await file.read()
-    text = raw.decode("utf-8-sig", errors="replace")  # BOM-tolerant (Excel)
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "CSV has no header row")
+    rows = _read_tabular(file.filename or "upload.csv", raw)
+    rows = [row for row in rows if any(cell for cell in row)]
+    if not rows:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "File is empty")
+    return {
+        "rows": rows[:6],
+        "total_rows": len(rows),
+        "guessed_header": _guess_has_header(rows, master_type),
+    }
 
-    known_keys = {field["key"] for field in master_type.fields}
-    header_keys = [key.strip() for key in reader.fieldnames]
-    if not any(key in known_keys for key in header_keys):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"CSV header must use the field keys: {sorted(known_keys)}",
-        )
+
+@router.post("/types/{type_id}/import")
+async def import_records(
+    type_id: uuid.UUID,
+    file: UploadFile,
+    has_header: bool | None = Form(None),
+    admin: User = Depends(require_company_admin),
+    db: Session = Depends(get_db),
+):
+    """CSV / Excel bulk import. Header cells may be either the field keys or
+    the field labels (顧客名 …). `has_header=false` imports every row as data
+    (columns map to the type's fields in order). Duplicate rows are skipped."""
+    master_type = _get_type(db, admin, type_id)
+    raw = await file.read()
+    rows = _read_tabular(file.filename or "upload.csv", raw)
+    rows = [row for row in rows if any(cell for cell in row)]
+    if not rows:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "File is empty")
+
+    header_present = _guess_has_header(rows, master_type) if has_header is None else has_header
+
+    # A type created with no fields gets its columns from the file.
+    if not master_type.fields:
+        if header_present:
+            inferred = _infer_fields(rows[0])
+        else:
+            width = max(len(row) for row in rows)
+            inferred = [
+                {"key": f"col_{i}", "label": f"列{i}", "matchable": True, "required": False}
+                for i in range(1, width + 1)
+            ]
+        if not inferred:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Header row is empty")
+        master_type.fields = inferred
+        db.flush()
+
+    if header_present:
+        # Map each header cell to a field key — by key or by label.
+        known_keys = {field["key"] for field in master_type.fields}
+        label_to_key = {field["label"]: field["key"] for field in master_type.fields}
+        header = [label_to_key.get(cell, cell) for cell in rows[0]]
+        if not any(key in known_keys for key in header):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Header must use the field keys {sorted(known_keys)} "
+                f"or labels {sorted(label_to_key)}",
+            )
+        data_rows = rows[1:]
+        first_line = 2
+    else:
+        # No header — columns map to the type's fields in definition order.
+        header = [field["key"] for field in master_type.fields]
+        data_rows = rows
+        first_line = 1
 
     existing = {
         tuple(sorted(record.data.items()))
@@ -328,11 +481,10 @@ async def import_csv(
     created = 0
     skipped = 0
     errors: list[str] = []
-    for line_number, row in enumerate(reader, start=2):
+    for line_number, cells in enumerate(data_rows, start=first_line):
+        row = {key: value for key, value in zip(header, cells) if key}
         try:
-            data = _validate_record_data(
-                master_type, {k.strip(): (v or "") for k, v in row.items() if k}
-            )
+            data = _validate_record_data(master_type, row)
         except HTTPException as exc:
             errors.append(f"line {line_number}: {exc.detail}")
             continue
@@ -394,6 +546,7 @@ def page_matches(
                 matched_text=match.matched_text,
                 master_value=match.master_value,
                 record_data=record.data,
+                field_labels=labels,
                 score=match.score,
                 kind=match.kind,
                 status=match.status,

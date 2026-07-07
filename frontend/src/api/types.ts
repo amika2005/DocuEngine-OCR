@@ -14,9 +14,48 @@ export interface Document {
   page_count: number;
   byte_size: number;
   batch_id: string | null;
+  template_id: string | null;
+  extracted_json: ExtractionResult | null;
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface TemplateField {
+  key: string;
+  label: string;
+  description: string;
+  type: 'text' | 'date' | 'number' | 'amount';
+  required: boolean;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  doc_type: string;
+  description: string | null;
+  fields: TemplateField[];
+  documents_count: number;
+  created_at: string;
+}
+
+export interface ExtractedField {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  value: string | null;
+  confidence: number;
+  page_number: number | null;
+  bbox: number[] | null;
+  missing: boolean;
+}
+
+export interface ExtractionResult {
+  template_id: string;
+  template_name: string;
+  extracted_at: string;
+  fields: ExtractedField[];
 }
 
 export interface DocumentList {
@@ -49,6 +88,7 @@ export interface Region {
   markdown: string;
   confidence: number;
   vertical: boolean;
+  code_kind?: string; // for kind === 'code': 'qr' | 'barcode'
 }
 
 export interface Correction {
@@ -131,6 +171,7 @@ export interface MasterMatch {
   matched_text: string;
   master_value: string;
   record_data: Record<string, string>;
+  field_labels: Record<string, string>;
   score: number;
   kind: 'exact' | 'fuzzy';
   status: 'suggested' | 'linked' | 'dismissed';
