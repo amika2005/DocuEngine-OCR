@@ -12,21 +12,48 @@ const STATE_LABELS = {
   duplicate: '重複',
 };
 
+// --- Tabs ---
+document.querySelectorAll('nav button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    btn.classList.add('active');
+    $(`tab-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
 function renderQueue(queue) {
-  $('queue').innerHTML = queue
+  const rows = queue
     .map((entry) => {
       const name = entry.path.split(/[\\/]/).pop();
       const label = STATE_LABELS[entry.state] ?? entry.state;
       const time = new Date(entry.updatedAt).toLocaleTimeString();
-      return `<tr><td>${name}</td><td class="state-${entry.state}" title="${entry.error ?? ''}">${label}</td><td>${time}</td></tr>`;
+      const title = entry.error ? ` title="${entry.error.replace(/"/g, '&quot;')}"` : '';
+      return `<tr><td>${name}</td><td class="state state-${entry.state}"${title}>${label}</td><td>${time}</td></tr>`;
     })
     .join('');
+  $('queue').innerHTML = rows;
+  $('queueEmpty').style.display = queue.length ? 'none' : 'block';
+
+  const count = (state) => queue.filter((e) => e.state === state).length;
+  $('cUp').textContent = `${count('uploading') + count('pending')} アップロード中`;
+  $('cDone').textContent = `${count('done')} 完了`;
+  $('cFail').textContent = `${count('failed')} 失敗`;
 }
 
 function renderStatus(status) {
-  $('status').innerHTML = status.connected
-    ? `<span class="ok">接続済み${status.deviceName ? `: ${status.deviceName}` : ''}</span>`
-    : '<span class="ng">未接続</span>';
+  const on = status.connected;
+  // Header pill
+  $('conn').className = `conn ${on ? 'on' : 'off'}`;
+  $('connText').textContent = on ? `接続済み${status.deviceName ? `: ${status.deviceName}` : ''}` : '未接続';
+  // Home status card
+  $('homeStatus').className = `big ${on ? 'on' : 'off'}`;
+  $('homeStatus').textContent = on ? '接続済み・監視中' : '未接続';
+  $('homeSub').textContent = on
+    ? status.deviceName
+      ? `端末: ${status.deviceName}`
+      : '監視フォルダのファイルを自動アップロードします'
+    : '設定タブでサーバーとトークンを登録してください';
   renderQueue(status.queue);
 }
 
@@ -46,12 +73,28 @@ $('pickFolder').addEventListener('click', async () => {
 });
 
 $('save').addEventListener('click', async () => {
+  const msg = $('settingsMsg');
+  const server = $('serverUrl').value.trim();
+  const token = $('deviceToken').value.trim();
+  const folder = $('watchFolder').value.trim();
+  if (!server || !token || !folder) {
+    msg.className = 'ng';
+    msg.textContent = 'サーバー URL・トークン・監視フォルダをすべて入力してください';
+    return;
+  }
+  msg.className = '';
+  msg.textContent = '接続テスト中...';
+  $('save').disabled = true;
   await watcherApi.setConfig({
-    serverUrl: $('serverUrl').value.trim(),
-    deviceToken: $('deviceToken').value.trim(),
-    watchFolder: $('watchFolder').value.trim(),
+    serverUrl: server,
+    deviceToken: token,
+    watchFolder: folder,
     moveUploaded: $('moveUploaded').checked,
   });
+  const ok = await watcherApi.testConnection();
+  $('save').disabled = false;
+  msg.className = ok ? 'ok' : 'ng';
+  msg.textContent = ok ? '✓ 接続に成功しました' : '✗ 接続できませんでした。URL とトークンを確認してください';
   renderStatus(await watcherApi.getStatus());
 });
 

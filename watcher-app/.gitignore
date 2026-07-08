@@ -1,0 +1,5 @@
+
+# Build output
+release/
+release-portable/
+dist/

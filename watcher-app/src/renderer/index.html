@@ -4,46 +4,151 @@
   <meta charset="UTF-8" />
   <title>DocuEngine Watcher</title>
   <style>
-    body { font-family: 'Yu Gothic UI', Meiryo, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
-    header { background: #0f172a; color: #fff; padding: 10px 16px; font-weight: bold; }
-    main { padding: 16px; }
-    label { display: block; font-size: 12px; color: #475569; margin: 10px 0 2px; }
-    input[type="text"], input[type="password"] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
-    .row { display: flex; gap: 8px; align-items: end; }
+    :root {
+      --bg: #f1f5f9; --surface: #ffffff; --ink: #0f172a; --muted: #64748b;
+      --line: #e2e8f0; --accent: #0f766e; --accent-soft: #ccfbf1;
+      --ok: #15803d; --ok-soft: #dcfce7; --ng: #dc2626; --ng-soft: #fee2e2;
+      --warn: #b45309; --blue: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Yu Gothic UI', Meiryo, 'Segoe UI', sans-serif;
+      margin: 0; background: var(--bg); color: var(--ink); font-size: 14px;
+      -webkit-user-select: none; user-select: none;
+    }
+    header {
+      display: flex; align-items: center; gap: 10px;
+      background: #0f172a; color: #fff; padding: 12px 18px;
+    }
+    header .logo { font-weight: 700; letter-spacing: .02em; font-size: 15px; }
+    header .conn { margin-left: auto; font-size: 12px; font-weight: 600;
+      padding: 3px 11px; border-radius: 99px; display: inline-flex; align-items: center; gap: 6px; }
+    header .conn.on { background: var(--ok-soft); color: var(--ok); }
+    header .conn.off { background: var(--ng-soft); color: var(--ng); }
+    header .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    nav { display: flex; gap: 4px; padding: 10px 14px 0; background: var(--surface); border-bottom: 1px solid var(--line); }
+    nav button {
+      appearance: none; border: 0; background: transparent; cursor: pointer;
+      padding: 8px 16px; font-size: 14px; color: var(--muted); font-weight: 600;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    main { padding: 18px; }
+    .tab { display: none; } .tab.active { display: block; }
+
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+    .card + .card { margin-top: 14px; }
+
+    label { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin: 14px 0 4px; }
+    label:first-child { margin-top: 0; }
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+      font-size: 14px; font-family: inherit; -webkit-user-select: text; user-select: text;
+    }
+    input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .row { display: flex; gap: 8px; align-items: flex-end; }
     .row > div { flex: 1; }
-    button { margin-top: 12px; padding: 6px 16px; border: 0; border-radius: 4px; background: #0f172a; color: #fff; cursor: pointer; }
-    button.secondary { background: #e2e8f0; color: #0f172a; }
-    #status { margin-top: 8px; font-size: 13px; }
-    .ok { color: #16a34a; } .ng { color: #dc2626; }
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
-    th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
-    .state-done { color: #16a34a; } .state-failed { color: #dc2626; }
-    .state-uploading { color: #2563eb; } .state-pending { color: #b45309; }
-    .state-duplicate { color: #64748b; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: var(--ink); }
+    .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+    button.btn { padding: 8px 18px; border: 0; border-radius: 6px; background: var(--accent); color: #fff;
+      cursor: pointer; font-size: 14px; font-weight: 600; font-family: inherit; }
+    button.btn:hover { background: #0e6b63; }
+    button.btn:disabled { opacity: .5; cursor: default; }
+    button.ghost { background: #e2e8f0; color: var(--ink); }
+    button.ghost:hover { background: #cbd5e1; }
+    .actions { display: flex; gap: 10px; margin-top: 18px; align-items: center; }
+    #settingsMsg { font-size: 13px; }
+    #settingsMsg.ok { color: var(--ok); } #settingsMsg.ng { color: var(--ng); }
+
+    .statusrow { display: flex; align-items: center; gap: 14px; }
+    .statusrow .big { font-size: 17px; font-weight: 700; }
+    .statusrow .big.on { color: var(--ok); } .statusrow .big.off { color: var(--ng); }
+    .statusrow .sub { color: var(--muted); font-size: 13px; }
+    .counts { display: flex; gap: 10px; margin-left: auto; }
+    .counts .pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #f1f5f9; color: var(--muted); }
+    .counts .pill.up { background: #dbeafe; color: var(--blue); }
+    .counts .pill.done { background: var(--ok-soft); color: var(--ok); }
+    .counts .pill.fail { background: var(--ng-soft); color: var(--ng); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { text-align: left; font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+      color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    tbody td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .state { font-weight: 600; }
+    .state-done { color: var(--ok); } .state-failed { color: var(--ng); }
+    .state-uploading { color: var(--blue); } .state-pending { color: var(--warn); }
+    .state-duplicate { color: var(--muted); }
+    .empty { text-align: center; color: #94a3b8; padding: 28px 0; font-size: 13px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
   </style>
 </head>
 <body>
-  <header>DocuEngine Watcher</header>
+  <header>
+    <span class="logo">DocuEngine Watcher</span>
+    <span class="conn off" id="conn"><span class="dot"></span><span id="connText">未接続</span></span>
+  </header>
+
+  <nav>
+    <button data-tab="home" class="active">ホーム</button>
+    <button data-tab="settings">設定</button>
+  </nav>
+
   <main>
-    <label>サーバー URL</label>
-    <input type="text" id="serverUrl" placeholder="https://192.168.1.10" />
-    <label>デバイストークン</label>
-    <input type="password" id="deviceToken" placeholder="dedev_..." />
-    <div class="row">
-      <div>
-        <label>監視フォルダ（スキャナー出力先）</label>
-        <input type="text" id="watchFolder" readonly />
+    <!-- HOME: monitoring only -->
+    <section class="tab active" id="tab-home">
+      <div class="card">
+        <div class="statusrow">
+          <div>
+            <div class="big off" id="homeStatus">未接続</div>
+            <div class="sub" id="homeSub">設定タブでサーバーとトークンを登録してください</div>
+          </div>
+          <div class="counts">
+            <span class="pill up" id="cUp">0 アップロード中</span>
+            <span class="pill done" id="cDone">0 完了</span>
+            <span class="pill fail" id="cFail">0 失敗</span>
+          </div>
+        </div>
       </div>
-      <button class="secondary" id="pickFolder" type="button">選択...</button>
-    </div>
-    <label><input type="checkbox" id="moveUploaded" checked /> アップロード後 uploaded/ フォルダへ移動</label>
-    <button id="save">保存して接続テスト</button>
-    <div id="status"></div>
-    <table>
-      <thead><tr><th>ファイル</th><th>状態</th><th>更新</th></tr></thead>
-      <tbody id="queue"></tbody>
-    </table>
+      <div class="card">
+        <table>
+          <thead><tr><th>ファイル</th><th>状態</th><th>更新</th></tr></thead>
+          <tbody id="queue"></tbody>
+        </table>
+        <div class="empty" id="queueEmpty">まだアップロードはありません。監視フォルダにファイルを入れてください。</div>
+      </div>
+    </section>
+
+    <!-- SETTINGS: server / token / folder -->
+    <section class="tab" id="tab-settings">
+      <div class="card">
+        <label for="serverUrl">サーバー URL</label>
+        <input type="text" id="serverUrl" placeholder="http://192.168.1.10:8000" />
+        <div class="hint">DocuEngine サーバーのアドレス（例: http://localhost:8000）</div>
+
+        <label for="deviceToken">デバイストークン</label>
+        <input type="password" id="deviceToken" placeholder="dedev_..." />
+        <div class="hint">管理画面「スキャナー端末」で発行したトークンを貼り付けてください</div>
+
+        <label>監視フォルダ（スキャナー出力先）</label>
+        <div class="row">
+          <div><input type="text" id="watchFolder" readonly placeholder="未選択" /></div>
+          <button class="btn ghost" id="pickFolder" type="button">選択...</button>
+        </div>
+
+        <label class="check"><input type="checkbox" id="moveUploaded" checked /> アップロード後 uploaded/ フォルダへ移動</label>
+
+        <div class="actions">
+          <button class="btn" id="save">保存して接続テスト</button>
+          <span id="settingsMsg"></span>
+        </div>
+      </div>
+    </section>
   </main>
+
   <script src="./renderer.js"></script>
 </body>
 </html>
