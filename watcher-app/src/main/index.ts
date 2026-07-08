@@ -134,8 +134,17 @@ app.whenReady().then(async () => {
   ipcMain.handle(IPC.getStatus, () => snapshot());
   ipcMain.handle(IPC.testConnection, () => testConnection());
   ipcMain.handle(IPC.pickFolder, async () => {
-    const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-    return result.filePaths[0] ?? null;
+    // Parent the dialog to the window so it opens modal and in front (without a
+    // parent it can appear behind the window and seem unclickable).
+    const options: Electron.OpenDialogOptions = {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select watch folder',
+    };
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
   });
 
   createTray();
