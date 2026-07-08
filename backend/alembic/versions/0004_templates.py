@@ -1,7 +1,7 @@
 """OCR extraction templates: templates table + documents.template_id/extracted_json.
 
-Revision ID: 0003
-Revises: 0002
+Revision ID: 0004
+Revises: 0003
 Create Date: 2026-07-07
 
 """
@@ -12,8 +12,8 @@ import app.models  # noqa: F401  — register all tables on Base.metadata
 from app.db.base import Base
 from app.models.company import JSONB
 
-revision = "0003"
-down_revision = "0002"
+revision = "0004"
+down_revision = "0003"
 branch_labels = None
 depends_on = None
 
