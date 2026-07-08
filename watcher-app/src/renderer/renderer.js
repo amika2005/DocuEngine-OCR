@@ -4,60 +4,156 @@
 
 const $ = (id) => document.getElementById(id);
 
-const STATE_LABELS = {
-  pending: '待機中',
-  uploading: 'アップロード中',
-  done: '完了',
-  failed: '失敗',
-  duplicate: '重複',
+// --- i18n (Japanese / English) ---
+const STRINGS = {
+  ja: {
+    'nav.home': 'ホーム',
+    'nav.settings': '設定',
+    'conn.on': '接続済み',
+    'conn.off': '未接続',
+    'home.connected': '接続済み・監視中',
+    'home.disconnected': '未接続',
+    'home.promptSettings': '設定タブでサーバーとトークンを登録してください',
+    'home.device': '端末: {name}',
+    'home.watching': '監視フォルダのファイルを自動アップロードします',
+    'counts.uploading': '{n} アップロード中',
+    'counts.done': '{n} 完了',
+    'counts.failed': '{n} 失敗',
+    'table.file': 'ファイル',
+    'table.state': '状態',
+    'table.updated': '更新',
+    'queue.empty': 'まだアップロードはありません。監視フォルダにファイルを入れてください。',
+    'settings.serverUrl': 'サーバー URL',
+    'settings.serverHint': 'DocuEngine サーバーのアドレス（例: http://localhost:8000）',
+    'settings.token': 'デバイストークン',
+    'settings.tokenHint': '管理画面「スキャナー端末」で発行したトークンを貼り付けてください',
+    'settings.folder': '監視フォルダ（スキャナー出力先）',
+    'settings.folderPh': '未選択',
+    'settings.pick': '選択...',
+    'settings.moveUploaded': 'アップロード後 uploaded/ フォルダへ移動',
+    'settings.save': '保存して接続テスト',
+    'settings.testing': '接続テスト中...',
+    'settings.needAll': 'サーバー URL・トークン・監視フォルダをすべて入力してください',
+    'settings.connOk': '✓ 接続に成功しました',
+    'settings.connFail': '✗ 接続できませんでした。URL とトークンを確認してください',
+    'state.pending': '待機中',
+    'state.uploading': 'アップロード中',
+    'state.done': '完了',
+    'state.failed': '失敗',
+    'state.duplicate': '重複',
+  },
+  en: {
+    'nav.home': 'Home',
+    'nav.settings': 'Settings',
+    'conn.on': 'Connected',
+    'conn.off': 'Not connected',
+    'home.connected': 'Connected · watching',
+    'home.disconnected': 'Not connected',
+    'home.promptSettings': 'Add the server and token in the Settings tab',
+    'home.device': 'Device: {name}',
+    'home.watching': 'Files in the watch folder upload automatically',
+    'counts.uploading': '{n} uploading',
+    'counts.done': '{n} done',
+    'counts.failed': '{n} failed',
+    'table.file': 'File',
+    'table.state': 'Status',
+    'table.updated': 'Updated',
+    'queue.empty': 'No uploads yet. Drop files into the watch folder.',
+    'settings.serverUrl': 'Server URL',
+    'settings.serverHint': 'Address of the DocuEngine server (e.g. http://localhost:8000)',
+    'settings.token': 'Device token',
+    'settings.tokenHint': 'Paste the token issued under "Scanner devices" in the admin UI',
+    'settings.folder': 'Watch folder (scanner output)',
+    'settings.folderPh': 'Not selected',
+    'settings.pick': 'Choose...',
+    'settings.moveUploaded': 'Move to uploaded/ folder after upload',
+    'settings.save': 'Save & test connection',
+    'settings.testing': 'Testing connection...',
+    'settings.needAll': 'Enter the server URL, token and watch folder',
+    'settings.connOk': '✓ Connected successfully',
+    'settings.connFail': '✗ Could not connect. Check the URL and token',
+    'state.pending': 'Pending',
+    'state.uploading': 'Uploading',
+    'state.done': 'Done',
+    'state.failed': 'Failed',
+    'state.duplicate': 'Duplicate',
+  },
 };
 
+let lang = localStorage.getItem('watcher-lang') || 'ja';
+const t = (key, vars) => {
+  let s = (STRINGS[lang] && STRINGS[lang][key]) || key;
+  if (vars) for (const k in vars) s = s.replace(`{${k}}`, vars[k]);
+  return s;
+};
+
+function applyStatic() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach((el) => {
+    el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph')));
+  });
+  $('langToggle').textContent = lang === 'ja' ? 'EN' : '日本語';
+}
+
 // --- Tabs ---
-document.querySelectorAll('nav button').forEach((btn) => {
+document.querySelectorAll('nav button[data-tab]').forEach((btn) => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('nav button').forEach((b) => b.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('nav button[data-tab]').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach((tab) => tab.classList.remove('active'));
     btn.classList.add('active');
     $(`tab-${btn.dataset.tab}`).classList.add('active');
   });
 });
 
+$('langToggle').addEventListener('click', async () => {
+  lang = lang === 'ja' ? 'en' : 'ja';
+  localStorage.setItem('watcher-lang', lang);
+  applyStatic();
+  renderStatus(await watcherApi.getStatus());
+});
+
+let lastStatus = { connected: false, queue: [] };
+
 function renderQueue(queue) {
-  const rows = queue
+  $('queue').innerHTML = queue
     .map((entry) => {
       const name = entry.path.split(/[\\/]/).pop();
-      const label = STATE_LABELS[entry.state] ?? entry.state;
+      const label = t(`state.${entry.state}`);
       const time = new Date(entry.updatedAt).toLocaleTimeString();
       const title = entry.error ? ` title="${entry.error.replace(/"/g, '&quot;')}"` : '';
       return `<tr><td>${name}</td><td class="state state-${entry.state}"${title}>${label}</td><td>${time}</td></tr>`;
     })
     .join('');
-  $('queue').innerHTML = rows;
   $('queueEmpty').style.display = queue.length ? 'none' : 'block';
 
   const count = (state) => queue.filter((e) => e.state === state).length;
-  $('cUp').textContent = `${count('uploading') + count('pending')} アップロード中`;
-  $('cDone').textContent = `${count('done')} 完了`;
-  $('cFail').textContent = `${count('failed')} 失敗`;
+  $('cUp').textContent = t('counts.uploading', { n: count('uploading') + count('pending') });
+  $('cDone').textContent = t('counts.done', { n: count('done') });
+  $('cFail').textContent = t('counts.failed', { n: count('failed') });
 }
 
 function renderStatus(status) {
+  lastStatus = status;
   const on = status.connected;
-  // Header pill
   $('conn').className = `conn ${on ? 'on' : 'off'}`;
-  $('connText').textContent = on ? `接続済み${status.deviceName ? `: ${status.deviceName}` : ''}` : '未接続';
-  // Home status card
+  $('connText').textContent = on
+    ? `${t('conn.on')}${status.deviceName ? `: ${status.deviceName}` : ''}`
+    : t('conn.off');
   $('homeStatus').className = `big ${on ? 'on' : 'off'}`;
-  $('homeStatus').textContent = on ? '接続済み・監視中' : '未接続';
+  $('homeStatus').textContent = on ? t('home.connected') : t('home.disconnected');
   $('homeSub').textContent = on
     ? status.deviceName
-      ? `端末: ${status.deviceName}`
-      : '監視フォルダのファイルを自動アップロードします'
-    : '設定タブでサーバーとトークンを登録してください';
+      ? t('home.device', { name: status.deviceName })
+      : t('home.watching')
+    : t('home.promptSettings');
   renderQueue(status.queue);
 }
 
 async function init() {
+  applyStatic();
   const config = await watcherApi.getConfig();
   $('serverUrl').value = config.serverUrl;
   $('deviceToken').value = config.deviceToken;
@@ -79,11 +175,11 @@ $('save').addEventListener('click', async () => {
   const folder = $('watchFolder').value.trim();
   if (!server || !token || !folder) {
     msg.className = 'ng';
-    msg.textContent = 'サーバー URL・トークン・監視フォルダをすべて入力してください';
+    msg.textContent = t('settings.needAll');
     return;
   }
   msg.className = '';
-  msg.textContent = '接続テスト中...';
+  msg.textContent = t('settings.testing');
   $('save').disabled = true;
   await watcherApi.setConfig({
     serverUrl: server,
@@ -94,7 +190,7 @@ $('save').addEventListener('click', async () => {
   const ok = await watcherApi.testConnection();
   $('save').disabled = false;
   msg.className = ok ? 'ok' : 'ng';
-  msg.textContent = ok ? '✓ 接続に成功しました' : '✗ 接続できませんでした。URL とトークンを確認してください';
+  msg.textContent = ok ? t('settings.connOk') : t('settings.connFail');
   renderStatus(await watcherApi.getStatus());
 });
 

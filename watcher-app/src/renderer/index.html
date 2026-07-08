@@ -26,6 +26,9 @@
     header .conn.on { background: var(--ok-soft); color: var(--ok); }
     header .conn.off { background: var(--ng-soft); color: var(--ng); }
     header .conn .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    header .lang { margin-left: 10px; appearance: none; border: 1px solid #334155; background: transparent;
+      color: #cbd5e1; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px; cursor: pointer; }
+    header .lang:hover { background: #1e293b; }
 
     nav { display: flex; gap: 4px; padding: 10px 14px 0; background: var(--surface); border-bottom: 1px solid var(--line); }
     nav button {
@@ -90,11 +93,12 @@
   <header>
     <span class="logo">DocuEngine Watcher</span>
     <span class="conn off" id="conn"><span class="dot"></span><span id="connText">未接続</span></span>
+    <button class="lang" id="langToggle" type="button">EN</button>
   </header>
 
   <nav>
-    <button data-tab="home" class="active">ホーム</button>
-    <button data-tab="settings">設定</button>
+    <button data-tab="home" class="active" data-i18n="nav.home">ホーム</button>
+    <button data-tab="settings" data-i18n="nav.settings">設定</button>
   </nav>
 
   <main>
@@ -107,42 +111,46 @@
             <div class="sub" id="homeSub">設定タブでサーバーとトークンを登録してください</div>
           </div>
           <div class="counts">
-            <span class="pill up" id="cUp">0 アップロード中</span>
-            <span class="pill done" id="cDone">0 完了</span>
-            <span class="pill fail" id="cFail">0 失敗</span>
+            <span class="pill up" id="cUp"></span>
+            <span class="pill done" id="cDone"></span>
+            <span class="pill fail" id="cFail"></span>
           </div>
         </div>
       </div>
       <div class="card">
         <table>
-          <thead><tr><th>ファイル</th><th>状態</th><th>更新</th></tr></thead>
+          <thead><tr>
+            <th data-i18n="table.file">ファイル</th>
+            <th data-i18n="table.state">状態</th>
+            <th data-i18n="table.updated">更新</th>
+          </tr></thead>
           <tbody id="queue"></tbody>
         </table>
-        <div class="empty" id="queueEmpty">まだアップロードはありません。監視フォルダにファイルを入れてください。</div>
+        <div class="empty" id="queueEmpty" data-i18n="queue.empty">まだアップロードはありません。監視フォルダにファイルを入れてください。</div>
       </div>
     </section>
 
     <!-- SETTINGS: server / token / folder -->
     <section class="tab" id="tab-settings">
       <div class="card">
-        <label for="serverUrl">サーバー URL</label>
+        <label for="serverUrl" data-i18n="settings.serverUrl">サーバー URL</label>
         <input type="text" id="serverUrl" placeholder="http://192.168.1.10:8000" />
-        <div class="hint">DocuEngine サーバーのアドレス（例: http://localhost:8000）</div>
+        <div class="hint" data-i18n="settings.serverHint">DocuEngine サーバーのアドレス（例: http://localhost:8000）</div>
 
-        <label for="deviceToken">デバイストークン</label>
+        <label for="deviceToken" data-i18n="settings.token">デバイストークン</label>
         <input type="password" id="deviceToken" placeholder="dedev_..." />
-        <div class="hint">管理画面「スキャナー端末」で発行したトークンを貼り付けてください</div>
+        <div class="hint" data-i18n="settings.tokenHint">管理画面「スキャナー端末」で発行したトークンを貼り付けてください</div>
 
-        <label>監視フォルダ（スキャナー出力先）</label>
+        <label data-i18n="settings.folder">監視フォルダ（スキャナー出力先）</label>
         <div class="row">
-          <div><input type="text" id="watchFolder" readonly placeholder="未選択" /></div>
-          <button class="btn ghost" id="pickFolder" type="button">選択...</button>
+          <div><input type="text" id="watchFolder" readonly data-i18n-ph="settings.folderPh" placeholder="未選択" /></div>
+          <button class="btn ghost" id="pickFolder" type="button" data-i18n="settings.pick">選択...</button>
         </div>
 
-        <label class="check"><input type="checkbox" id="moveUploaded" checked /> アップロード後 uploaded/ フォルダへ移動</label>
+        <label class="check"><input type="checkbox" id="moveUploaded" checked /> <span data-i18n="settings.moveUploaded">アップロード後 uploaded/ フォルダへ移動</span></label>
 
         <div class="actions">
-          <button class="btn" id="save">保存して接続テスト</button>
+          <button class="btn" id="save" data-i18n="settings.save">保存して接続テスト</button>
           <span id="settingsMsg"></span>
         </div>
       </div>
