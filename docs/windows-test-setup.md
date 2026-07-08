@@ -175,7 +175,31 @@ inline QR codes), 修正する (edit), Download → PDF / Excel.
 
 ---
 
-## 8. Daily restart order / 毎回の起動順序
+## 8. Scanner watcher app (optional) / スキャナー監視アプリ
+
+The watcher is a small desktop app that auto-uploads files a scanner drops into
+a folder. It's separate from the web app. On the test PC:
+
+```powershell
+cd watcher-app
+npm install          # first time only (downloads Electron)
+npm run build
+npm start            # opens the DocuEngine Watcher window
+```
+
+In the app: **設定 / Settings** tab → enter the server URL
+(`http://localhost:8000`), paste a device token (create one in the web UI as
+company admin → スキャナー端末 / Scanner devices → the token shows once), pick a
+watch folder, press **保存して接続テスト / Save & test connection**. Drop a PDF or
+image into that folder → it uploads and OCRs automatically. The header has a
+**EN / 日本語** toggle.
+
+> A prebuilt portable version can also be handed over as a zip — extract and
+> double-click `DocuEngine Watcher.exe`, no install needed.
+
+---
+
+## 9. Daily restart order / 毎回の起動順序
 
 After the one-time setup, to run it again just open three PowerShell windows:
 
@@ -189,7 +213,7 @@ auto-restart — copy it if you like.)
 
 ---
 
-## 9. Troubleshooting / トラブルシューティング
+## 10. Troubleshooting / トラブルシューティング
 
 | Problem | Fix |
 |---|---|
