@@ -143,9 +143,10 @@
 
         <label data-i18n="settings.folder">監視フォルダ（スキャナー出力先）</label>
         <div class="row">
-          <div><input type="text" id="watchFolder" readonly data-i18n-ph="settings.folderPh" placeholder="未選択" /></div>
+          <div><input type="text" id="watchFolder" data-i18n-ph="settings.folderPh" placeholder="C:\Users\...\Scans" /></div>
           <button class="btn ghost" id="pickFolder" type="button" data-i18n="settings.pick">選択...</button>
         </div>
+        <div class="hint" data-i18n="settings.folderHint">「選択」で選ぶか、フォルダのパスを直接貼り付けてください / Pick with the button, or paste the folder path directly</div>
 
         <label class="check"><input type="checkbox" id="moveUploaded" checked /> <span data-i18n="settings.moveUploaded">アップロード後 uploaded/ フォルダへ移動</span></label>
 
