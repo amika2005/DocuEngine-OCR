@@ -252,8 +252,7 @@ def export_documents_bulk(
     from fastapi.responses import Response
 
     from app.services.classify import CATEGORY_LABELS_JA
-    from app.services.export import documents_bulk_xlsx
-    from app.services.extraction import extract_document
+    from app.services.export import documents_bulk_xlsx, markdown_to_plain_text
 
     query = _visible_documents(user).where(
         Document.status.in_(
@@ -272,22 +271,21 @@ def export_documents_bulk(
         query = query.where(Document.created_at < end)
     documents = db.scalars(query.order_by(Document.created_at.desc())).all()
 
-    # Backfill fields on the fly for documents processed before auto-extraction
-    # existed, so the export always carries the data — no manual reclassify.
-    dirty = False
+    # One row per document with its full extracted text (from the saved markdown).
+    rows = []
     for document in documents:
-        if not document.extracted_json:
+        path = storage.document_markdown_path(document.company_id, document.id)
+        content = ""
+        if path.exists():
             try:
-                if extract_document(db, document):
-                    dirty = True
-            except Exception:
-                pass
-    if dirty:
-        db.commit()
+                content = markdown_to_plain_text(path.read_text(encoding="utf-8"))
+            except OSError:
+                content = ""
+        rows.append((document, content))
 
     label = CATEGORY_LABELS_JA.get(doc_type or "", "") if doc_type else ""
     title = f"{label}抽出一覧" if label else "文書抽出一覧"
-    data = documents_bulk_xlsx(documents, title=title)
+    data = documents_bulk_xlsx(rows, title=title)
     filename = quote(f"{title}.xlsx")
     return Response(
         data,

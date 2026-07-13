@@ -16,35 +16,40 @@ from sqlalchemy.orm import Session
 from app.models import Document, OcrResult, Page
 
 
-def documents_bulk_xlsx(documents: Iterable[Document], title: str = "抽出一覧") -> bytes:
-    """One polished sheet: title banner, JP headers, one row per document with
-    its extracted template fields (union of field labels across the set)."""
+_TABLE_SEP = re.compile(r"^\|[\s\-:|]+\|$")
+
+
+def markdown_to_plain_text(markdown: str) -> str:
+    """Readable plain text from the OCR markdown for a spreadsheet cell:
+    drop embedded code images, flatten table rows to spaced values, keep the
+    reading order line by line."""
+    lines: list[str] = []
+    for raw in markdown.splitlines():
+        line = raw.rstrip()
+        if not line.strip():
+            continue
+        if line.startswith("!["):  # embedded barcode/QR image
+            continue
+        if _TABLE_SEP.match(line):  # table separator row
+            continue
+        if line.startswith("|") and line.endswith("|") and len(line) > 1:
+            cells = [c.strip().replace("\\|", "|").replace("<br>", " ") for c in line[1:-1].split("|")]
+            line = "  ".join(c for c in cells if c)
+        if line.strip():
+            lines.append(line.strip())
+    return "\n".join(lines)
+
+
+def documents_bulk_xlsx(rows: Iterable[tuple[Document, str]], title: str = "抽出一覧") -> bytes:
+    """One polished sheet: title banner, one row per document with its full
+    extracted text in a single wide, wrapped cell (tall rows are fine)."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-    from openpyxl.utils import get_column_letter
 
     from app.services.classify import CATEGORY_LABELS_JA
 
-    documents = list(documents)
-
-    # Column set: fixed (file, category, date) + the union of extracted field
-    # labels, in the order they first appear.
-    field_labels: list[str] = []
-    seen: set[str] = set()
-    rows: list[tuple[Document, dict[str, str]]] = []
-    for doc in documents:
-        extracted = doc.extracted_json or {}
-        values = {
-            f.get("label", f.get("key", "")): (f.get("value") or "")
-            for f in extracted.get("fields", [])
-        }
-        for label in values:
-            if label and label not in seen:
-                seen.add(label)
-                field_labels.append(label)
-        rows.append((doc, values))
-
-    headers = ["ファイル名", "区分", "登録日"] + field_labels
+    rows = list(rows)
+    headers = ["ファイル名", "区分", "登録日", "抽出内容"]
     ncols = len(headers)
 
     thin = Side(style="thin", color="B4C6E7")
@@ -54,7 +59,6 @@ def documents_bulk_xlsx(documents: Iterable[Document], title: str = "抽出一�
     ws = wb.active
     ws.title = "抽出一覧"
 
-    # Title banner (merged, dark blue).
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncols)
     banner = ws.cell(1, 1, title)
     banner.font = Font(bold=True, size=13, color="FFFFFF")
@@ -62,7 +66,6 @@ def documents_bulk_xlsx(documents: Iterable[Document], title: str = "抽出一�
     banner.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     ws.row_dimensions[1].height = 28
 
-    # Header row.
     header_fill = PatternFill("solid", fgColor="DDEBF7")
     for col, text in enumerate(headers, start=1):
         cell = ws.cell(2, col, text)
@@ -72,33 +75,30 @@ def documents_bulk_xlsx(documents: Iterable[Document], title: str = "抽出一�
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws.row_dimensions[2].height = 22
 
-    # Data rows.
-    for r, (doc, values) in enumerate(rows, start=3):
+    for r, (doc, content) in enumerate(rows, start=3):
         category = CATEGORY_LABELS_JA.get(doc.doc_type or "", doc.doc_type or "")
         created = doc.created_at.strftime("%Y/%m/%d") if doc.created_at else ""
-        line = [doc.original_filename, category, created] + [
-            values.get(label, "") for label in field_labels
-        ]
+        line = [doc.original_filename, category, created, content or ""]
         for col, value in enumerate(line, start=1):
             cell = ws.cell(r, col, value)
             cell.border = border
             cell.alignment = Alignment(vertical="top", wrap_text=True)
-        if r % 2 == 1:  # subtle zebra striping
-            for col in range(1, ncols + 1):
+        if r % 2 == 1:
+            for col in range(1, ncols):  # stripe everything but the content column
                 ws.cell(r, col).fill = PatternFill("solid", fgColor="F5F9FF")
+        # Approximate a fitting row height from the content's line count.
+        n_lines = (content or "").count("\n") + 1
+        ws.row_dimensions[r].height = min(max(n_lines, 1) * 15, 409)
 
-    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["A"].width = 26
     ws.column_dimensions["B"].width = 12
     ws.column_dimensions["C"].width = 12
-    for i in range(4, ncols + 1):
-        ws.column_dimensions[get_column_letter(i)].width = 22
+    ws.column_dimensions["D"].width = 90
     ws.freeze_panes = "A3"
 
     buffer = io.BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
-
-_TABLE_SEP = re.compile(r"^\|[\s\-:|]+\|$")
 _IMAGE_LINE = re.compile(r"^!\[([^\]]*)\]\((.+)\)$")
 
 
