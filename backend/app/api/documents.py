@@ -253,6 +253,7 @@ def export_documents_bulk(
 
     from app.services.classify import CATEGORY_LABELS_JA
     from app.services.export import documents_bulk_xlsx
+    from app.services.extraction import extract_document
 
     query = _visible_documents(user).where(
         Document.status.in_(
@@ -270,6 +271,19 @@ def export_documents_bulk(
         end = datetime.combine(created_to + timedelta(days=1), time.min, tzinfo=timezone.utc)
         query = query.where(Document.created_at < end)
     documents = db.scalars(query.order_by(Document.created_at.desc())).all()
+
+    # Backfill fields on the fly for documents processed before auto-extraction
+    # existed, so the export always carries the data — no manual reclassify.
+    dirty = False
+    for document in documents:
+        if not document.extracted_json:
+            try:
+                if extract_document(db, document):
+                    dirty = True
+            except Exception:
+                pass
+    if dirty:
+        db.commit()
 
     label = CATEGORY_LABELS_JA.get(doc_type or "", "") if doc_type else ""
     title = f"{label}抽出一覧" if label else "文書抽出一覧"
