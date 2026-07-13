@@ -59,6 +59,23 @@ export default function DocumentsPage() {
     localStorage.setItem('docuengine-view', mode);
   }
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  function toggleSelect(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  async function claimSelected() {
+    await api('/documents/claim-mine', {
+      method: 'POST',
+      body: JSON.stringify({ document_ids: [...selected] }),
+    });
+    setSelected(new Set());
+    refresh();
+  }
+
   const [reclassifyBusy, setReclassifyBusy] = useState(false);
   async function reclassify() {
     setReclassifyBusy(true);
@@ -202,8 +219,34 @@ export default function DocumentsPage() {
         </button>
       </div>
 
+      {selected.size > 0 && (
+        <div className="mb-3 flex items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm">
+          <span className="font-medium text-sky-800">
+            {t('documents.selectedCount', { count: selected.size })}
+          </span>
+          <button
+            onClick={claimSelected}
+            className="rounded bg-sky-700 px-3 py-1 text-white hover:bg-sky-600"
+          >
+            {t('documents.claimMine')}
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-sky-700 hover:underline"
+          >
+            {t('documents.clearSelection')}
+          </button>
+        </div>
+      )}
+
       {view === 'list' ? (
-        <ListView documents={data?.items ?? []} empty={data?.items.length === 0} onDelete={refresh} />
+        <ListView
+          documents={data?.items ?? []}
+          empty={data?.items.length === 0}
+          onDelete={refresh}
+          selected={selected}
+          onToggleSelect={toggleSelect}
+        />
       ) : (
         <GridView documents={data?.items ?? []} empty={data?.items.length === 0} onDelete={refresh} />
       )}
@@ -225,7 +268,19 @@ export default function DocumentsPage() {
   );
 }
 
-function ListView({ documents, empty, onDelete }: { documents: Document[]; empty?: boolean; onDelete: () => void }) {
+function ListView({
+  documents,
+  empty,
+  onDelete,
+  selected,
+  onToggleSelect,
+}: {
+  documents: Document[];
+  empty?: boolean;
+  onDelete: () => void;
+  selected: Set<string>;
+  onToggleSelect: (id: string) => void;
+}) {
   const { t } = useTranslation();
 
   async function handleDelete(id: string) {
@@ -242,6 +297,7 @@ function ListView({ documents, empty, onDelete }: { documents: Document[]; empty
       <table className="w-full text-sm">
         <thead className="bg-slate-100 text-left text-slate-600">
           <tr>
+            <th className="w-8 px-2 py-2" />
             <th className="px-4 py-2">{t('documents.filename')}</th>
             <th className="px-4 py-2">{t('documents.category')}</th>
             <th className="px-4 py-2">{t('documents.status')}</th>
@@ -253,6 +309,14 @@ function ListView({ documents, empty, onDelete }: { documents: Document[]; empty
         <tbody>
           {documents.map((doc) => (
             <tr key={doc.id} className="border-t border-slate-100 hover:bg-slate-50">
+              <td className="px-2 py-2 text-center">
+                <input
+                  type="checkbox"
+                  checked={selected.has(doc.id)}
+                  onChange={() => onToggleSelect(doc.id)}
+                  className="accent-sky-600"
+                />
+              </td>
               <td className="px-4 py-2">
                 <Link to={`/documents/${doc.id}`} className="inline-flex items-center gap-1.5 text-blue-700 hover:underline">
                   {doc.visibility === 'private' && (
@@ -288,7 +352,7 @@ function ListView({ documents, empty, onDelete }: { documents: Document[]; empty
           ))}
           {empty && (
             <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                 {t('documents.empty')}
               </td>
             </tr>

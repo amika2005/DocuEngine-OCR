@@ -3,6 +3,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, PlainTextResponse
+from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -342,6 +343,29 @@ def set_visibility(
     db.commit()
     publish_event(user.company_id, "documents.changed", {"action": "visibility"})
     return document
+
+
+class ClaimBulkIn(BaseModel):
+    document_ids: list[uuid.UUID]
+
+
+@router.post("/documents/claim-mine")
+def claim_documents_bulk(
+    body: ClaimBulkIn,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """Claim several shared documents as mine (from the scanner pool)."""
+    documents = db.scalars(
+        _visible_documents(user).where(Document.id.in_(body.document_ids))
+    ).all()
+    for document in documents:
+        document.uploaded_by_user_id = user.id
+        document.visibility = "private"
+    db.commit()
+    if documents:
+        publish_event(user.company_id, "documents.changed", {"action": "claimed"})
+    return {"claimed": len(documents)}
 
 
 @router.post("/documents/{document_id}/claim", response_model=DocumentOut)
