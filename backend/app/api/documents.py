@@ -158,10 +158,11 @@ def reclassify_documents(
     user: User = Depends(require_company_member),
     db: Session = Depends(get_db),
 ):
-    """Backfill the category (区分) of already-processed documents from their
-    stored OCR text — for documents scanned before auto-classification, or that
-    never matched. No re-OCR: reads the saved markdown and re-detects the type."""
+    """Backfill category (区分) AND extracted fields for already-processed
+    documents from their stored OCR result — for documents scanned before
+    auto-classification/extraction existed. No re-OCR."""
     from app.services.classify import detect_category
+    from app.services.extraction import extract_document
 
     query = _visible_documents(user).where(
         Document.status.in_(
@@ -171,19 +172,26 @@ def reclassify_documents(
     documents = db.scalars(query).all()
     updated = 0
     for document in documents:
-        # Only (re)classify documents that don't already have a detected type.
-        if document.doc_type not in (None, "", "other"):
-            continue
-        path = storage.document_markdown_path(document.company_id, document.id)
-        if not path.exists():
-            continue
-        try:
-            markdown = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        detected = detect_category(markdown)
-        if detected:
-            document.doc_type = detected
+        changed = False
+        # Category — only when not already detected.
+        if document.doc_type in (None, "", "other"):
+            path = storage.document_markdown_path(document.company_id, document.id)
+            if path.exists():
+                try:
+                    detected = detect_category(path.read_text(encoding="utf-8"))
+                except OSError:
+                    detected = None
+                if detected:
+                    document.doc_type = detected
+                    changed = True
+        # Fields — extract when missing (built-in common fields for no-template).
+        if not document.extracted_json:
+            try:
+                if extract_document(db, document):
+                    changed = True
+            except Exception:
+                pass
+        if changed:
             updated += 1
     db.commit()
     if updated:

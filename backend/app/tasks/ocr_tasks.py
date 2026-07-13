@@ -230,14 +230,15 @@ def assemble_document(document_id: str) -> None:
         document.model_version_id = _active_model_version_id(db, document.company_id)
         document.completed_at = _utcnow()
 
-        # Template field extraction runs off the stored regions — cheap CPU work.
-        if document.template_id is not None:
-            from app.services.extraction import extract_document
+        # Field extraction off the stored regions — cheap CPU work. Uses the
+        # template if assigned, otherwise a built-in common-field set so every
+        # document carries structured data for the bulk export.
+        from app.services.extraction import extract_document
 
-            try:
-                extract_document(db, document)
-            except Exception:
-                pass  # extraction must never fail the document
+        try:
+            extract_document(db, document)
+        except Exception:
+            pass  # extraction must never fail the document
         db.commit()
 
         _bump_batch(db, document)

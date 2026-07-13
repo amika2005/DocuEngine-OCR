@@ -199,25 +199,105 @@ def _extract_field(field: dict, items: list[_Item]) -> dict:
     return out
 
 
-def extract_document(db: Session, document: Document) -> dict | None:
-    """Run template extraction for a completed document. Returns the
-    extracted_json payload (also assigned to the document) or None when the
-    document has no template."""
-    if document.template_id is None:
-        document.extracted_json = None
-        return None
-    template = db.get(Template, document.template_id)
-    if template is None:
-        document.extracted_json = None
-        return None
+# Common fields pulled from every document when no template is assigned, so
+# the bulk export and Fields tab still carry the useful data.
+_DEFAULT_FIELDS = [
+    {"key": "recipient", "label": "宛先", "type": "text"},
+    {"key": "issuer", "label": "発行会社", "type": "text"},
+    {"key": "doc_no", "label": "書類番号", "type": "text",
+     "description": "請求書番号,納品書番号,見積書番号,領収書番号,伝票番号,注文番号,発注番号"},
+    {"key": "subject", "label": "件名", "description": "品名,内容", "type": "text"},
+    {"key": "total", "label": "合計金額", "type": "amount",
+     "description": "ご請求金額,合計金額,総額,税込,お支払金額"},
+    {"key": "date", "label": "発行日", "type": "date",
+     "description": "日付,請求日,納品日,取引日,発行年月日"},
+    {"key": "reg_no", "label": "登録番号", "description": "インボイス番号,適格請求書", "type": "text"},
+]
 
+_COMPANY_MARKERS = ("株式会社", "有限会社", "合同会社", "合資会社")
+
+
+def _company_result(item: _Item) -> dict:
+    return {
+        "value": item.text.strip(),
+        "confidence": round(item.confidence, 3),
+        "page_number": item.page_number,
+        "bbox": list(item.bbox),
+        "missing": False,
+    }
+
+
+def _empty_field() -> dict:
+    return {"value": None, "confidence": 0.0, "page_number": None, "bbox": None, "missing": True}
+
+
+def _extract_recipient(items: list[_Item]) -> dict:
+    """The recipient is the company written just before 御中 (X御中)."""
+    for item in items:
+        idx = item.text.find("御中")
+        if idx > 0:
+            name = item.text[:idx].strip(" 　:：")
+            if len(name) >= 2:
+                out = _company_result(item)
+                out["value"] = name
+                return out
+    return _empty_field()
+
+
+def _extract_issuer(items: list[_Item], recipient: str | None) -> dict:
+    """The issuing company: the first 株式会社/有限会社 line that isn't the
+    recipient (no 御中) — usually the seller's own name near its 登録番号."""
+    for item in items:
+        text = item.text.strip()
+        if "御中" in text or len(text) > 30:
+            continue
+        if recipient and recipient in text:
+            continue
+        if any(marker in text for marker in _COMPANY_MARKERS):
+            return _company_result(item)
+    return _empty_field()
+
+
+def _extract_fields(items: list[_Item], field_defs: list[dict]) -> list[dict]:
+    fields = []
+    recipient_value: str | None = None
+    for field in field_defs:
+        key = field["key"]
+        if key == "recipient":
+            best = _extract_recipient(items)
+            recipient_value = best["value"]
+        elif key == "issuer":
+            best = _extract_issuer(items, recipient_value)
+        else:
+            fields.append(_extract_field(field, items))
+            continue
+        fields.append({"key": key, "label": field["label"], "type": "text",
+                       "required": False, **best})
+    return fields
+
+
+def extract_document(db: Session, document: Document) -> dict | None:
+    """Extract structured fields for a completed document. Uses the assigned
+    template's fields, or a built-in set of common business-document fields
+    when there is no template — so every document carries usable data."""
     items = _collect_items(db, document)
-    fields = [_extract_field(field, items) for field in template.fields]
+    if document.template_id is not None:
+        template = db.get(Template, document.template_id)
+        if template is not None:
+            document.extracted_json = {
+                "template_id": str(template.id),
+                "template_name": template.name,
+                "extracted_at": datetime.now(timezone.utc).isoformat(),
+                "fields": _extract_fields(items, template.fields),
+            }
+            return document.extracted_json
+
     document.extracted_json = {
-        "template_id": str(template.id),
-        "template_name": template.name,
+        "template_id": None,
+        "template_name": "自動抽出",
+        "auto": True,
         "extracted_at": datetime.now(timezone.utc).isoformat(),
-        "fields": fields,
+        "fields": _extract_fields(items, _DEFAULT_FIELDS),
     }
     return document.extracted_json
 
