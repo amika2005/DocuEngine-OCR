@@ -146,6 +146,16 @@ export class Uploader {
     const config = this.getConfig();
     const headers: Record<string, string> = { 'X-Device-Token': config.deviceToken };
     if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-    return fetch(new URL(apiPath, config.serverUrl), { method, headers, body });
+    // `localhost` can resolve to IPv6 (::1) where a 127.0.0.1-only server isn't
+    // listening, which hangs the request — normalize to IPv4 for local URLs.
+    const base = config.serverUrl.replace('://localhost', '://127.0.0.1');
+    // Always time out so a bad address surfaces as a failure, never a hang.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    try {
+      return await fetch(new URL(apiPath, base), { method, headers, body, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
