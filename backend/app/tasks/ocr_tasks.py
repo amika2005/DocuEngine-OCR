@@ -206,8 +206,18 @@ def assemble_document(document_id: str) -> None:
                 reason = page.error_message or "unknown error"
                 page_markdowns.append(f"<!-- page {page.page_number}: OCR failed — {reason} -->")
 
+        full_markdown = assemble.document_markdown(page_markdowns)
         md_path = storage.document_markdown_path(document.company_id, document.id)
-        storage.save_bytes(md_path, assemble.document_markdown(page_markdowns).encode())
+        storage.save_bytes(md_path, full_markdown.encode())
+
+        # Auto-classify the document type from its title (納品書/請求書/...) unless
+        # the uploader set one explicitly (anything other than the "other" default).
+        if document.doc_type in (None, "", "other"):
+            from app.services.classify import detect_category
+
+            detected = detect_category(full_markdown)
+            if detected:
+                document.doc_type = detected
 
         document.status = (
             DocumentStatus.partially_failed.value if failed else DocumentStatus.completed.value

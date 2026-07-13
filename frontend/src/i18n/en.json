@@ -107,6 +107,8 @@
   },
   "documents": {
     "title": "Documents", "upload": "Upload", "filename": "File name", "status": "Status", "pages": "Pages", "date": "Uploaded", "empty": "No documents yet", "search": "Search by file name", "listView": "List view", "gridView": "Grid view",
+    "category": "Category", "allCategories": "All categories", "dateRange": "Date", "clearFilters": "Clear", "resultCount": "{{count}} documents", "exportExcel": "Export Excel",
+    "categories": { "delivery_note": "Delivery note", "invoice": "Invoice", "quotation": "Quotation", "receipt": "Receipt", "order": "Purchase order", "inspection": "Inspection", "statement": "Statement", "tax_report": "Tax report", "letter": "Letter", "other": "Other" },
     "statusValues": { "uploaded": "Uploaded", "queued": "Queued", "processing": "Processing", "completed": "Completed", "failed": "Failed", "partially_failed": "Partially failed" }
   },
   "detail": { "originalImage": "Original image", "markdown": "Markdown result", "textLines": "Text lines", "boxes": "Boxes", "addRow": "Add row below", "removeRow": "Delete row", "codes": "Barcodes / QR", "barcode": "Barcode", "download": "Download", "reprocess": "Reprocess", "edit": "Correct", "confidence": "Confidence", "progress": "{{done}} / {{total}} pages processed", "pageFailed": "OCR failed for page {{page}}" },

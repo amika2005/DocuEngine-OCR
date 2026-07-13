@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, FileSpreadsheet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client';
+import { api, downloadFile } from '../../api/client';
 import type { Document, DocumentList } from '../../api/types';
 import { useEvents } from '../../api/useEvents';
 import StatusBadge from '../../components/StatusBadge';
@@ -11,21 +11,39 @@ import DocumentThumbnail from '../../components/DocumentThumbnail';
 
 type ViewMode = 'list' | 'grid';
 
+const CATEGORIES = [
+  'delivery_note',
+  'invoice',
+  'quotation',
+  'receipt',
+  'order',
+  'tax_report',
+  'letter',
+  'other',
+] as const;
+
 export default function DocumentsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [docType, setDocType] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [view, setView] = useState<ViewMode>(
     (localStorage.getItem('docuengine-view') as ViewMode) ?? 'list',
   );
 
+  const params = new URLSearchParams({ page: String(page), page_size: '24' });
+  if (search) params.set('q', search);
+  if (docType) params.set('doc_type', docType);
+  if (dateFrom) params.set('created_from', dateFrom);
+  if (dateTo) params.set('created_to', dateTo);
+  const query = params.toString();
+
   const { data } = useQuery({
-    queryKey: ['documents', page, search],
-    queryFn: () =>
-      api<DocumentList>(
-        `/documents?page=${page}&page_size=24${search ? `&q=${encodeURIComponent(search)}` : ''}`,
-      ),
+    queryKey: ['documents', query],
+    queryFn: () => api<DocumentList>(`/documents?${query}`),
   });
 
   const refresh = useCallback(
@@ -78,6 +96,77 @@ export default function DocumentsPage() {
         </Link>
       </div>
 
+      {/* Filter bar: category + date range */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+        <select
+          value={docType}
+          onChange={(event) => {
+            setDocType(event.target.value);
+            setPage(1);
+          }}
+          className="rounded border border-slate-300 px-2 py-1.5"
+        >
+          <option value="">{t('documents.allCategories')}</option>
+          {CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {t(`documents.categories.${category}`, category)}
+            </option>
+          ))}
+        </select>
+        <span className="text-slate-400">{t('documents.dateRange')}</span>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(event) => {
+            setDateFrom(event.target.value);
+            setPage(1);
+          }}
+          className="rounded border border-slate-300 px-2 py-1.5"
+        />
+        <span className="text-slate-400">〜</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(event) => {
+            setDateTo(event.target.value);
+            setPage(1);
+          }}
+          className="rounded border border-slate-300 px-2 py-1.5"
+        />
+        {(docType || dateFrom || dateTo) && (
+          <button
+            onClick={() => {
+              setDocType('');
+              setDateFrom('');
+              setDateTo('');
+              setPage(1);
+            }}
+            className="rounded border border-slate-300 px-2 py-1.5 text-slate-600 hover:bg-slate-50"
+          >
+            {t('documents.clearFilters')}
+          </button>
+        )}
+        {data && (
+          <span className="ml-auto text-xs text-slate-400">
+            {t('documents.resultCount', { count: data.total })}
+          </span>
+        )}
+        <button
+          onClick={() => {
+            const p = new URLSearchParams();
+            if (docType) p.set('doc_type', docType);
+            if (dateFrom) p.set('created_from', dateFrom);
+            if (dateTo) p.set('created_to', dateTo);
+            if (search) p.set('q', search);
+            downloadFile(`/documents/export/bulk-xlsx?${p.toString()}`, 'documents.xlsx');
+          }}
+          className={`flex items-center gap-1.5 rounded bg-emerald-700 px-3 py-1.5 text-white hover:bg-emerald-600 ${data ? '' : 'ml-auto'}`}
+        >
+          <FileSpreadsheet size={15} />
+          {t('documents.exportExcel')}
+        </button>
+      </div>
+
       {view === 'list' ? (
         <ListView documents={data?.items ?? []} empty={data?.items.length === 0} onDelete={refresh} />
       ) : (
@@ -119,6 +208,7 @@ function ListView({ documents, empty, onDelete }: { documents: Document[]; empty
         <thead className="bg-slate-100 text-left text-slate-600">
           <tr>
             <th className="px-4 py-2">{t('documents.filename')}</th>
+            <th className="px-4 py-2">{t('documents.category')}</th>
             <th className="px-4 py-2">{t('documents.status')}</th>
             <th className="px-4 py-2">{t('documents.pages')}</th>
             <th className="px-4 py-2">{t('documents.date')}</th>
@@ -132,6 +222,15 @@ function ListView({ documents, empty, onDelete }: { documents: Document[]; empty
                 <Link to={`/documents/${doc.id}`} className="text-blue-700 hover:underline">
                   {doc.original_filename}
                 </Link>
+              </td>
+              <td className="px-4 py-2">
+                {doc.doc_type && doc.doc_type !== 'other' ? (
+                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                    {t(`documents.categories.${doc.doc_type}`, doc.doc_type)}
+                  </span>
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
               </td>
               <td className="px-4 py-2">
                 <StatusBadge status={doc.status} />
@@ -151,7 +250,7 @@ function ListView({ documents, empty, onDelete }: { documents: Document[]; empty
           ))}
           {empty && (
             <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                 {t('documents.empty')}
               </td>
             </tr>

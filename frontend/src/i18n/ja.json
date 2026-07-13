@@ -107,6 +107,8 @@
   },
   "documents": {
     "title": "文書一覧", "upload": "アップロード", "filename": "ファイル名", "status": "状態", "pages": "ページ", "date": "登録日時", "empty": "文書がありません", "search": "ファイル名で検索", "listView": "リスト表示", "gridView": "グリッド表示",
+    "category": "区分", "allCategories": "すべての区分", "dateRange": "期間", "clearFilters": "クリア", "resultCount": "{{count}} 件", "exportExcel": "Excel 出力",
+    "categories": { "delivery_note": "納品書", "invoice": "請求書", "quotation": "見積書", "receipt": "領収書", "order": "発注書", "inspection": "検収書", "statement": "取引明細書", "tax_report": "税務書類", "letter": "レター", "other": "その他" },
     "statusValues": { "uploaded": "受付済", "queued": "待機中", "processing": "処理中", "completed": "完了", "failed": "失敗", "partially_failed": "一部失敗" }
   },
   "detail": { "originalImage": "原本画像", "markdown": "Markdown 結果", "textLines": "テキスト行", "boxes": "領域表示", "addRow": "下に行を追加", "removeRow": "行を削除", "codes": "バーコード / QR", "barcode": "バーコード", "download": "ダウンロード", "reprocess": "再処理", "edit": "修正する", "confidence": "信頼度", "progress": "{{done}} / {{total}} ページ処理済", "pageFailed": "ページ {{page}} の OCR に失敗しました" },

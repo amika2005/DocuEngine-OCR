@@ -1,4 +1,5 @@
 import uuid
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -90,6 +91,8 @@ def list_documents(
     doc_type: str | None = None,
     batch_id: uuid.UUID | None = None,
     q: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
     page: int = 1,
     page_size: int = 25,
     user: User = Depends(require_company_member),
@@ -106,6 +109,13 @@ def list_documents(
         query = query.where(Document.batch_id == batch_id)
     if q:
         query = query.where(Document.original_filename.ilike(f"%{q}%"))
+    if created_from:
+        start = datetime.combine(created_from, time.min, tzinfo=timezone.utc)
+        query = query.where(Document.created_at >= start)
+    if created_to:
+        # Inclusive of the whole end day.
+        end = datetime.combine(created_to + timedelta(days=1), time.min, tzinfo=timezone.utc)
+        query = query.where(Document.created_at < end)
     total = db.scalar(select(func.count()).select_from(query.subquery()))
     items = db.scalars(
         query.order_by(Document.created_at.desc())
@@ -149,6 +159,53 @@ def download_document_markdown(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Markdown not available yet")
     filename = f"{document.original_filename.rsplit('.', 1)[0]}.md"
     return FileResponse(path, media_type="text/markdown", filename=filename)
+
+
+@router.get("/documents/export/bulk-xlsx")
+def export_documents_bulk(
+    status_filter: str | None = None,
+    doc_type: str | None = None,
+    q: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """One Excel of every (filtered) completed document's extracted fields."""
+    from urllib.parse import quote
+
+    from fastapi.responses import Response
+
+    from app.services.classify import CATEGORY_LABELS_JA
+    from app.services.export import documents_bulk_xlsx
+
+    query = select(Document).where(
+        Document.company_id == user.company_id,
+        Document.status.in_(
+            [DocumentStatus.completed.value, DocumentStatus.partially_failed.value]
+        ),
+    )
+    if doc_type:
+        query = query.where(Document.doc_type == doc_type)
+    if q:
+        query = query.where(Document.original_filename.ilike(f"%{q}%"))
+    if created_from:
+        start = datetime.combine(created_from, time.min, tzinfo=timezone.utc)
+        query = query.where(Document.created_at >= start)
+    if created_to:
+        end = datetime.combine(created_to + timedelta(days=1), time.min, tzinfo=timezone.utc)
+        query = query.where(Document.created_at < end)
+    documents = db.scalars(query.order_by(Document.created_at.desc())).all()
+
+    label = CATEGORY_LABELS_JA.get(doc_type or "", "") if doc_type else ""
+    title = f"{label}抽出一覧" if label else "文書抽出一覧"
+    data = documents_bulk_xlsx(documents, title=title)
+    filename = quote(f"{title}.xlsx")
+    return Response(
+        data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
 
 
 @router.get("/documents/{document_id}/export/pdf")
