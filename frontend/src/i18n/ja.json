@@ -107,7 +107,7 @@
   },
   "documents": {
     "title": "文書一覧", "upload": "アップロード", "filename": "ファイル名", "status": "状態", "pages": "ページ", "date": "登録日時", "empty": "文書がありません", "search": "ファイル名で検索", "listView": "リスト表示", "gridView": "グリッド表示",
-    "category": "区分", "allCategories": "すべての区分", "dateRange": "期間", "clearFilters": "クリア", "resultCount": "{{count}} 件", "exportExcel": "Excel 出力", "mineOnly": "自分のみ",
+    "category": "区分", "allCategories": "すべての区分", "dateRange": "期間", "clearFilters": "クリア", "resultCount": "{{count}} 件", "exportExcel": "Excel 出力", "mineOnly": "自分のみ", "reclassify": "区分を再判定", "reclassifyHint": "スキャン済み文書の区分を本文から判定します", "reclassifyDone": "{{count}} 件の区分を判定しました",
     "categories": { "delivery_note": "納品書", "invoice": "請求書", "quotation": "見積書", "receipt": "領収書", "order": "発注書", "inspection": "検収書", "statement": "取引明細書", "tax_report": "税務書類", "letter": "レター", "other": "その他" },
     "statusValues": { "uploaded": "受付済", "queued": "待機中", "processing": "処理中", "completed": "完了", "failed": "失敗", "partially_failed": "一部失敗" }
   },

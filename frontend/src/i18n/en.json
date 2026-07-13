@@ -107,7 +107,7 @@
   },
   "documents": {
     "title": "Documents", "upload": "Upload", "filename": "File name", "status": "Status", "pages": "Pages", "date": "Uploaded", "empty": "No documents yet", "search": "Search by file name", "listView": "List view", "gridView": "Grid view",
-    "category": "Category", "allCategories": "All categories", "dateRange": "Date", "clearFilters": "Clear", "resultCount": "{{count}} documents", "exportExcel": "Export Excel", "mineOnly": "Mine only",
+    "category": "Category", "allCategories": "All categories", "dateRange": "Date", "clearFilters": "Clear", "resultCount": "{{count}} documents", "exportExcel": "Export Excel", "mineOnly": "Mine only", "reclassify": "Re-detect category", "reclassifyHint": "Detect the category of already-scanned documents from their text", "reclassifyDone": "{{count}} documents reclassified",
     "categories": { "delivery_note": "Delivery note", "invoice": "Invoice", "quotation": "Quotation", "receipt": "Receipt", "order": "Purchase order", "inspection": "Inspection", "statement": "Statement", "tax_report": "Tax report", "letter": "Letter", "other": "Other" },
     "statusValues": { "uploaded": "Uploaded", "queued": "Queued", "processing": "Processing", "completed": "Completed", "failed": "Failed", "partially_failed": "Partially failed" }
   },

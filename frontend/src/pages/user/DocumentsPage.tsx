@@ -59,6 +59,18 @@ export default function DocumentsPage() {
     localStorage.setItem('docuengine-view', mode);
   }
 
+  const [reclassifyBusy, setReclassifyBusy] = useState(false);
+  async function reclassify() {
+    setReclassifyBusy(true);
+    try {
+      const r = await api<{ updated: number }>(`/documents/reclassify`, { method: 'POST' });
+      refresh();
+      alert(t('documents.reclassifyDone', { count: r.updated }));
+    } finally {
+      setReclassifyBusy(false);
+    }
+  }
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   return (
@@ -115,6 +127,14 @@ export default function DocumentsPage() {
             </option>
           ))}
         </select>
+        <button
+          onClick={reclassify}
+          disabled={reclassifyBusy}
+          title={t('documents.reclassifyHint')}
+          className="rounded border border-slate-300 px-2 py-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {reclassifyBusy ? '…' : t('documents.reclassify')}
+        </button>
         <span className="text-slate-400">{t('documents.dateRange')}</span>
         <input
           type="date"

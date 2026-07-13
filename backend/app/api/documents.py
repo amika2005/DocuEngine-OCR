@@ -153,6 +153,44 @@ def list_documents(
     return DocumentListOut(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.post("/documents/reclassify")
+def reclassify_documents(
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """Backfill the category (区分) of already-processed documents from their
+    stored OCR text — for documents scanned before auto-classification, or that
+    never matched. No re-OCR: reads the saved markdown and re-detects the type."""
+    from app.services.classify import detect_category
+
+    query = _visible_documents(user).where(
+        Document.status.in_(
+            [DocumentStatus.completed.value, DocumentStatus.partially_failed.value]
+        )
+    )
+    documents = db.scalars(query).all()
+    updated = 0
+    for document in documents:
+        # Only (re)classify documents that don't already have a detected type.
+        if document.doc_type not in (None, "", "other"):
+            continue
+        path = storage.document_markdown_path(document.company_id, document.id)
+        if not path.exists():
+            continue
+        try:
+            markdown = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        detected = detect_category(markdown)
+        if detected:
+            document.doc_type = detected
+            updated += 1
+    db.commit()
+    if updated:
+        publish_event(user.company_id, "documents.changed", {"action": "reclassified"})
+    return {"updated": updated, "scanned": len(documents)}
+
+
 @router.get("/documents/{document_id}", response_model=DocumentOut)
 def get_document(
     document_id: uuid.UUID,
