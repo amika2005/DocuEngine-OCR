@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Trash2, FileSpreadsheet } from 'lucide-react';
+import { Trash2, FileSpreadsheet, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,6 +30,7 @@ export default function DocumentsPage() {
   const [docType, setDocType] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [mineOnly, setMineOnly] = useState(false);
   const [view, setView] = useState<ViewMode>(
     (localStorage.getItem('docuengine-view') as ViewMode) ?? 'list',
   );
@@ -39,6 +40,7 @@ export default function DocumentsPage() {
   if (docType) params.set('doc_type', docType);
   if (dateFrom) params.set('created_from', dateFrom);
   if (dateTo) params.set('created_to', dateTo);
+  if (mineOnly) params.set('mine', 'true');
   const query = params.toString();
 
   const { data } = useQuery({
@@ -133,12 +135,25 @@ export default function DocumentsPage() {
           }}
           className="rounded border border-slate-300 px-2 py-1.5"
         />
-        {(docType || dateFrom || dateTo) && (
+        <label className="flex cursor-pointer select-none items-center gap-1.5 text-slate-600">
+          <input
+            type="checkbox"
+            checked={mineOnly}
+            onChange={(event) => {
+              setMineOnly(event.target.checked);
+              setPage(1);
+            }}
+            className="accent-sky-600"
+          />
+          {t('documents.mineOnly')}
+        </label>
+        {(docType || dateFrom || dateTo || mineOnly) && (
           <button
             onClick={() => {
               setDocType('');
               setDateFrom('');
               setDateTo('');
+              setMineOnly(false);
               setPage(1);
             }}
             className="rounded border border-slate-300 px-2 py-1.5 text-slate-600 hover:bg-slate-50"
@@ -219,7 +234,10 @@ function ListView({ documents, empty, onDelete }: { documents: Document[]; empty
           {documents.map((doc) => (
             <tr key={doc.id} className="border-t border-slate-100 hover:bg-slate-50">
               <td className="px-4 py-2">
-                <Link to={`/documents/${doc.id}`} className="text-blue-700 hover:underline">
+                <Link to={`/documents/${doc.id}`} className="inline-flex items-center gap-1.5 text-blue-700 hover:underline">
+                  {doc.visibility === 'private' && (
+                    <Lock size={12} className="shrink-0 text-slate-400" aria-label="private" />
+                  )}
                   {doc.original_filename}
                 </Link>
               </td>

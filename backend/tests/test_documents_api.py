@@ -9,6 +9,41 @@ def _upload(client, headers, filename="請求書2026.pdf", content=b"%PDF-1.4 fa
     )
 
 
+def test_document_visibility_private_shared(client, auth, seed, db, no_celery):
+    from app.models import User, UserRole
+    from app.services.security import hash_password
+
+    # user_a's upload is private by default.
+    doc = _upload(client, auth("user_a"), "vis-private.pdf", b"%PDF-1.4 vis").json()
+
+    # A second regular user in the SAME company.
+    other = User(
+        company_id=seed["company_a"].id,
+        email="other@alpha.jp",
+        password_hash=hash_password("test-password-123"),
+        display_name="other",
+        role=UserRole.user.value,
+    )
+    db.add(other)
+    db.commit()
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": "other@alpha.jp", "password": "test-password-123"},
+    ).json()["access_token"]
+    other_auth = {"Authorization": f"Bearer {token}"}
+
+    doc_url = f"/api/v1/documents/{doc['id']}"
+    assert client.get(doc_url, headers=auth("user_a")).status_code == 200  # owner
+    assert client.get(doc_url, headers=other_auth).status_code == 404  # other user: hidden
+    assert client.get(doc_url, headers=auth("admin_a")).status_code == 200  # admin sees all
+    other_ids = [d["id"] for d in client.get("/api/v1/documents", headers=other_auth).json()["items"]]
+    assert doc["id"] not in other_ids
+
+    # Share it → now the other user can see it.
+    client.patch(f"{doc_url}/visibility?visibility=shared", headers=auth("user_a"))
+    assert client.get(doc_url, headers=other_auth).status_code == 200
+
+
 def test_upload_and_get(client, auth, seed, no_celery):
     response = _upload(client, auth("user_a"))
     assert response.status_code == 201, response.text

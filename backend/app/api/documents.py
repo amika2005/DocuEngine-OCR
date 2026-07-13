@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, PlainTextResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_company_member
@@ -17,6 +17,7 @@ from app.models import (
     Page,
     Template,
     User,
+    UserRole,
 )
 from app.schemas.document import (
     BatchOut,
@@ -32,9 +33,30 @@ from app.services.audit import log_action
 router = APIRouter(tags=["documents"])
 
 
+def _is_admin(user: User) -> bool:
+    return user.role in (UserRole.company_admin.value, UserRole.super_admin.value)
+
+
+def _can_see(user: User, document: Document) -> bool:
+    """A member sees shared docs and their own; admins see everything."""
+    if _is_admin(user):
+        return True
+    return document.visibility == "shared" or document.uploaded_by_user_id == user.id
+
+
+def _visible_documents(user: User):
+    """Base query scoped to what this user may see."""
+    query = select(Document).where(Document.company_id == user.company_id)
+    if not _is_admin(user):
+        query = query.where(
+            or_(Document.visibility == "shared", Document.uploaded_by_user_id == user.id)
+        )
+    return query
+
+
 def _get_document(db: Session, user: User, document_id: uuid.UUID) -> Document:
     document = db.get(Document, document_id)
-    if document is None or document.company_id != user.company_id:
+    if document is None or document.company_id != user.company_id or not _can_see(user, document):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
     return document
 
@@ -69,6 +91,9 @@ async def upload_document(
             doc_type=doc_type,
         )
         document.template_id = template_id
+        # A person's own upload is private by default (owner + admins see it);
+        # they can share it later. Scanner/device uploads stay shared.
+        document.visibility = "private"
     except doc_service.DuplicateDocumentError as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -93,6 +118,7 @@ def list_documents(
     q: str | None = None,
     created_from: date | None = None,
     created_to: date | None = None,
+    mine: bool = False,
     page: int = 1,
     page_size: int = 25,
     user: User = Depends(require_company_member),
@@ -100,7 +126,9 @@ def list_documents(
 ):
     page = max(page, 1)
     page_size = min(max(page_size, 1), 100)
-    query = select(Document).where(Document.company_id == user.company_id)
+    query = _visible_documents(user)
+    if mine:
+        query = query.where(Document.uploaded_by_user_id == user.id)
     if status_filter:
         query = query.where(Document.status == status_filter)
     if doc_type:
@@ -179,11 +207,10 @@ def export_documents_bulk(
     from app.services.classify import CATEGORY_LABELS_JA
     from app.services.export import documents_bulk_xlsx
 
-    query = select(Document).where(
-        Document.company_id == user.company_id,
+    query = _visible_documents(user).where(
         Document.status.in_(
             [DocumentStatus.completed.value, DocumentStatus.partially_failed.value]
-        ),
+        )
     )
     if doc_type:
         query = query.where(Document.doc_type == doc_type)
@@ -250,6 +277,40 @@ def export_document_xlsx(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(stem)}.xlsx"},
     )
+
+
+@router.patch("/documents/{document_id}/visibility", response_model=DocumentOut)
+def set_visibility(
+    document_id: uuid.UUID,
+    visibility: str,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """Owner (or admin) toggles a document between private and shared."""
+    if visibility not in ("private", "shared"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "visibility must be private or shared")
+    document = _get_document(db, user, document_id)
+    if not _is_admin(user) and document.uploaded_by_user_id != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can change visibility")
+    document.visibility = visibility
+    db.commit()
+    publish_event(user.company_id, "documents.changed", {"action": "visibility"})
+    return document
+
+
+@router.post("/documents/{document_id}/claim", response_model=DocumentOut)
+def claim_document(
+    document_id: uuid.UUID,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """Take ownership of a shared/unowned document (marks it yours + private)."""
+    document = _get_document(db, user, document_id)
+    document.uploaded_by_user_id = user.id
+    document.visibility = "private"
+    db.commit()
+    publish_event(user.company_id, "documents.changed", {"action": "claimed"})
+    return document
 
 
 @router.post("/documents/{document_id}/reprocess", response_model=DocumentOut)

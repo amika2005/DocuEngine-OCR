@@ -85,6 +85,9 @@ class Document(Base, UUIDMixin, TimestampMixin):
         sa.String(32), default=DocumentStatus.uploaded.value, nullable=False
     )
     error_message: Mapped[str | None] = mapped_column(sa.Text)
+    # private = owner (uploaded_by_user_id) + company admins only;
+    # shared = every company member. Device/scanner uploads default to shared.
+    visibility: Mapped[str] = mapped_column(sa.String(16), default="shared", nullable=False)
     model_version_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("model_versions.id", ondelete="SET NULL")
     )

@@ -16,6 +16,8 @@ export interface Document {
   batch_id: string | null;
   template_id: string | null;
   extracted_json: ExtractionResult | null;
+  visibility: 'private' | 'shared';
+  uploaded_by_user_id: string | null;
   error_message: string | null;
   created_at: string;
   completed_at: string | null;

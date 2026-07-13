@@ -254,6 +254,13 @@ export default function DocumentDetailPage() {
     await api(`/documents/${id}/rematch`, { method: 'POST' });
   }
 
+  async function toggleVisibility() {
+    if (!doc) return;
+    const next = doc.visibility === 'private' ? 'shared' : 'private';
+    await api(`/documents/${id}/visibility?visibility=${next}`, { method: 'PATCH' });
+    invalidateAll();
+  }
+
   async function handleDelete() {
     if (!confirm(t('common.confirmDelete') || 'Are you sure you want to delete this document?')) return;
     try {
@@ -299,6 +306,17 @@ export default function DocumentDetailPage() {
           </button>
         </div>
         <h1 className="min-w-0 flex-1 truncate text-xl font-bold">{doc.original_filename}</h1>
+        <button
+          onClick={toggleVisibility}
+          title={t('detail.visibilityHint')}
+          className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+            doc.visibility === 'private'
+              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+              : 'bg-sky-100 text-sky-800 hover:bg-sky-200'
+          }`}
+        >
+          {doc.visibility === 'private' ? t('detail.visPrivate') : t('detail.visShared')}
+        </button>
         <StatusBadge status={doc.status} />
         {suggestedCount > 0 && (
           <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">

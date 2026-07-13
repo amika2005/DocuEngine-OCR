@@ -14,6 +14,8 @@ class DocumentOut(BaseModel):
     batch_id: uuid.UUID | None
     template_id: uuid.UUID | None = None
     extracted_json: dict | None = None
+    visibility: str = "shared"
+    uploaded_by_user_id: uuid.UUID | None = None
     error_message: str | None
     created_at: datetime
     completed_at: datetime | None
