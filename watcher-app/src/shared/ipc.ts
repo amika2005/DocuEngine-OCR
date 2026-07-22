@@ -27,4 +27,10 @@ export const IPC = {
   testConnection: 'connection:test',
   statusChanged: 'status:changed',
   pickFolder: 'folder:pick',
+  validateFolder: 'folder:validate',
 } as const;
+
+export interface FolderValidation {
+  path: string; // normalized (quotes stripped, file → its folder)
+  valid: boolean; // exists and is a directory
+}

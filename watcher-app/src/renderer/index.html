@@ -53,6 +53,14 @@
     input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
     .row { display: flex; gap: 8px; align-items: flex-end; }
     .row > div { flex: 1; }
+    .dropzone { position: relative; border: 1px dashed transparent; border-radius: 8px; transition: border-color .12s, background .12s; }
+    .dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+    .dropzone .dropoverlay {
+      display: none; position: absolute; inset: 0; align-items: center; justify-content: center;
+      background: rgba(204,251,241,.85); color: var(--accent); font-weight: 700; font-size: 13px;
+      border-radius: 8px; pointer-events: none;
+    }
+    .dropzone.drag .dropoverlay { display: flex; }
     .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: var(--ink); }
     .check input { width: 16px; height: 16px; accent-color: var(--accent); }
 
@@ -142,11 +150,14 @@
         <div class="hint" data-i18n="settings.tokenHint">管理画面「スキャナー端末」で発行したトークンを貼り付けてください</div>
 
         <label data-i18n="settings.folder">監視フォルダ（スキャナー出力先）</label>
-        <div class="row">
-          <div><input type="text" id="watchFolder" data-i18n-ph="settings.folderPh" placeholder="C:\Users\...\Scans" /></div>
-          <button class="btn ghost" id="pickFolder" type="button" data-i18n="settings.pick">選択...</button>
+        <div id="folderDrop" class="dropzone">
+          <div class="row">
+            <div><input type="text" id="watchFolder" data-i18n-ph="settings.folderPh" placeholder="C:\Users\...\Scans" /></div>
+            <button class="btn ghost" id="pickFolder" type="button" data-i18n="settings.pick">選択...</button>
+          </div>
+          <div class="dropoverlay" data-i18n="settings.dropActive">フォルダをドロップ</div>
         </div>
-        <div class="hint" data-i18n="settings.folderHint">「選択」で選ぶか、フォルダのパスを直接貼り付けてください / Pick with the button, or paste the folder path directly</div>
+        <div class="hint" data-i18n="settings.folderHint">「選択」で選ぶ・フォルダをドラッグ＆ドロップ・パスを直接貼り付け</div>
 
         <label class="check"><input type="checkbox" id="moveUploaded" checked /> <span data-i18n="settings.moveUploaded">アップロード後 uploaded/ フォルダへ移動</span></label>
 

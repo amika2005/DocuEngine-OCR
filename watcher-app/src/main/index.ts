@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, Tray } from 'electron';
 import Store from 'electron-store';
+import fs from 'node:fs';
 import path from 'node:path';
 import { IPC, type StatusSnapshot, type WatcherConfig } from '../shared/ipc';
 import { Journal } from './journal';
@@ -35,8 +36,26 @@ function getConfig(): WatcherConfig {
   return { ...base, deviceToken };
 }
 
+/**
+ * Clean up a folder path typed or pasted by the user. Windows Explorer's
+ * "Copy as path" wraps the path in double quotes ("C:\...\Scans"), which
+ * breaks the watcher silently — strip those and trailing whitespace. If the
+ * path points at a file (e.g. a file was dropped), fall back to its folder.
+ */
+function normalizeFolder(input: string): string {
+  let p = (input ?? '').trim();
+  if (p.length >= 2 && p.startsWith('"') && p.endsWith('"')) p = p.slice(1, -1).trim();
+  try {
+    if (p && fs.statSync(p).isFile()) p = path.dirname(p);
+  } catch {
+    // Path may not exist yet; validation happens separately.
+  }
+  return p;
+}
+
 function setConfig(config: WatcherConfig): void {
   const { deviceToken, ...rest } = config;
+  rest.watchFolder = normalizeFolder(rest.watchFolder);
   store.set('config', rest);
   if (deviceToken) {
     const encrypted = safeStorage.isEncryptionAvailable()
@@ -115,10 +134,20 @@ function createTray(): void {
   updateTray();
 }
 
+function folderExists(folder: string): boolean {
+  try {
+    return !!folder && fs.statSync(folder).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function startWatching(): void {
   const config = getConfig();
-  if (config.watchFolder && config.deviceToken && config.serverUrl) {
+  if (config.deviceToken && config.serverUrl && folderExists(config.watchFolder)) {
     folderWatcher.start(config.watchFolder);
+  } else {
+    folderWatcher.stop();
   }
 }
 
@@ -136,15 +165,28 @@ app.whenReady().then(async () => {
   ipcMain.handle(IPC.pickFolder, async () => {
     // Parent the dialog to the window so it opens modal and in front (without a
     // parent it can appear behind the window and seem unclickable).
-    const options: Electron.OpenDialogOptions = {
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Select watch folder',
-    };
-    const result = window
-      ? await dialog.showOpenDialog(window, options)
-      : await dialog.showOpenDialog(options);
-    if (result.canceled || result.filePaths.length === 0) return null;
-    return result.filePaths[0];
+    try {
+      const current = getConfig().watchFolder;
+      const options: Electron.OpenDialogOptions = {
+        properties: ['openDirectory', 'createDirectory'],
+        title: '監視フォルダを選択 / Select watch folder',
+        defaultPath: folderExists(current) ? current : app.getPath('documents'),
+      };
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options);
+      if (result.canceled || result.filePaths.length === 0) return null;
+      return result.filePaths[0];
+    } catch (err) {
+      // Native dialog can be unreliable on some Windows setups; the renderer
+      // falls back to drag-and-drop / paste, so just report the failure.
+      console.error('pickFolder failed', err);
+      return null;
+    }
+  });
+  ipcMain.handle(IPC.validateFolder, (_event, folder: string) => {
+    const p = normalizeFolder(folder);
+    return { path: p, valid: folderExists(p) };
   });
 
   createTray();

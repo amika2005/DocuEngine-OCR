@@ -29,8 +29,11 @@ const STRINGS = {
     'settings.tokenHint': '管理画面「スキャナー端末」で発行したトークンを貼り付けてください',
     'settings.folder': '監視フォルダ（スキャナー出力先）',
     'settings.folderPh': 'C:\\Users\\...\\Scans',
-    'settings.folderHint': '「選択」で選ぶか、フォルダのパスを直接貼り付けてください',
+    'settings.folderHint':
+      '「選択」で選ぶ・フォルダをここにドラッグ＆ドロップ・パスを直接貼り付け のいずれかで指定できます',
     'settings.pick': '選択...',
+    'settings.dropActive': 'フォルダをドロップ',
+    'settings.folderMissing': '✗ フォルダが見つかりません。パスを確認してください',
     'settings.moveUploaded': 'アップロード後 uploaded/ フォルダへ移動',
     'settings.save': '保存して接続テスト',
     'settings.testing': '接続テスト中...',
@@ -66,8 +69,11 @@ const STRINGS = {
     'settings.tokenHint': 'Paste the token issued under "Scanner devices" in the admin UI',
     'settings.folder': 'Watch folder (scanner output)',
     'settings.folderPh': 'C:\\Users\\...\\Scans',
-    'settings.folderHint': 'Pick with the button, or paste the folder path directly',
+    'settings.folderHint':
+      'Pick with the button, drag & drop a folder here, or paste the folder path directly',
     'settings.pick': 'Choose...',
+    'settings.dropActive': 'Drop folder here',
+    'settings.folderMissing': '✗ Folder not found. Check the path',
     'settings.moveUploaded': 'Move to uploaded/ folder after upload',
     'settings.save': 'Save & test connection',
     'settings.testing': 'Testing connection...',
@@ -167,19 +173,72 @@ async function init() {
 
 $('pickFolder').addEventListener('click', async () => {
   const folder = await watcherApi.pickFolder();
-  if (folder) $('watchFolder').value = folder;
+  if (folder) {
+    $('watchFolder').value = folder;
+    $('settingsMsg').className = '';
+    $('settingsMsg').textContent = '';
+  }
+});
+
+// --- Drag & drop a folder (reliable fallback when the native dialog misbehaves) ---
+// Electron exposes an absolute `path` on dropped File objects; a dropped folder
+// arrives as a File with an empty type. We hand it to the main process to
+// normalize (a dropped file → its parent folder) and to confirm it exists.
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+// Stop the whole window from navigating away if a file is dropped outside the zone.
+['dragover', 'drop'].forEach((evt) => window.addEventListener(evt, (e) => e.preventDefault()));
+
+const dropZone = $('folderDrop');
+['dragenter', 'dragover'].forEach((evt) =>
+  dropZone.addEventListener(evt, (e) => {
+    preventDefaults(e);
+    dropZone.classList.add('drag');
+  }),
+);
+['dragleave', 'drop'].forEach((evt) =>
+  dropZone.addEventListener(evt, (e) => {
+    preventDefaults(e);
+    dropZone.classList.remove('drag');
+  }),
+);
+dropZone.addEventListener('drop', async (e) => {
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file || !file.path) return;
+  const res = await watcherApi.validateFolder(file.path);
+  const msg = $('settingsMsg');
+  if (res.valid) {
+    $('watchFolder').value = res.path;
+    msg.className = '';
+    msg.textContent = '';
+  } else {
+    msg.className = 'ng';
+    msg.textContent = t('settings.folderMissing');
+  }
 });
 
 $('save').addEventListener('click', async () => {
   const msg = $('settingsMsg');
   const server = $('serverUrl').value.trim();
   const token = $('deviceToken').value.trim();
-  const folder = $('watchFolder').value.trim();
-  if (!server || !token || !folder) {
+  const folderInput = $('watchFolder').value.trim();
+  if (!server || !token || !folderInput) {
     msg.className = 'ng';
     msg.textContent = t('settings.needAll');
     return;
   }
+  // Normalize (strip "Copy as path" quotes) and confirm the folder exists before
+  // saving, so a bad path fails loudly here instead of silently not watching.
+  const check = await watcherApi.validateFolder(folderInput);
+  if (!check.valid) {
+    msg.className = 'ng';
+    msg.textContent = t('settings.folderMissing');
+    return;
+  }
+  const folder = check.path;
+  $('watchFolder').value = folder;
   msg.className = '';
   msg.textContent = t('settings.testing');
   $('save').disabled = true;
