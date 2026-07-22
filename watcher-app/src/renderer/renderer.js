@@ -34,6 +34,7 @@ const STRINGS = {
     'settings.pick': '選択...',
     'settings.dropActive': 'フォルダをドロップ',
     'settings.folderMissing': '✗ フォルダが見つかりません。パスを確認してください',
+    'settings.folderEmpty': '✗ 空のフォルダは選べません。ファイルのあるフォルダを選ぶか、パスを貼り付けてください',
     'settings.moveUploaded': 'アップロード後 uploaded/ フォルダへ移動',
     'settings.save': '保存して接続テスト',
     'settings.testing': '接続テスト中...',
@@ -74,6 +75,7 @@ const STRINGS = {
     'settings.pick': 'Choose...',
     'settings.dropActive': 'Drop folder here',
     'settings.folderMissing': '✗ Folder not found. Check the path',
+    'settings.folderEmpty': '✗ Empty folder can’t be picked. Choose a folder that has files, or paste the path',
     'settings.moveUploaded': 'Move to uploaded/ folder after upload',
     'settings.save': 'Save & test connection',
     'settings.testing': 'Testing connection...',
@@ -186,35 +188,41 @@ async function setFolder(path) {
   return res.valid;
 }
 
-$('pickFolder').addEventListener('click', async () => {
-  const result = await watcherApi.pickFolder();
-  if (result && result.path) {
-    await setFolder(result.path);
-    return;
-  }
-  // Native OS dialog failed (unreliable on some Windows PCs) — fall back to the
-  // in-page Chromium directory picker. On plain cancel, do nothing.
-  if (result && result.failed) $('folderInput').click();
+// The native OS folder dialog is unreliable on some Windows PCs (it can hang
+// and never open). Chromium's own <input webkitdirectory> picker always opens,
+// so use it directly as the primary "Choose" action.
+$('pickFolder').addEventListener('click', () => {
+  $('folderInput').click();
 });
 
-// Chromium directory picker fallback. Derive the chosen folder from the first
-// file's absolute path minus its in-folder relative path.
+// Resolve a File object to its absolute on-disk path. File.path is deprecated
+// (empty) in recent Electron; webUtils.getPathForFile (exposed as
+// getDroppedPath) is the supported replacement.
+function absPath(file) {
+  if (!file) return '';
+  let p = '';
+  try {
+    p = watcherApi.getDroppedPath ? watcherApi.getDroppedPath(file) : '';
+  } catch {
+    p = '';
+  }
+  return p || file.path || '';
+}
+
+// Chromium directory picker. Derive the chosen folder from the first file's
+// absolute path minus its in-folder relative path.
 $('folderInput').addEventListener('change', async (e) => {
   const files = e.target.files;
   const msg = $('settingsMsg');
   if (!files || !files.length) {
+    // Empty folder selected — nothing to derive a path from.
     msg.className = 'ng';
-    msg.textContent = t('settings.folderMissing');
+    msg.textContent = t('settings.folderEmpty');
+    e.target.value = '';
     return;
   }
   const file = files[0];
-  let abs = '';
-  try {
-    abs = watcherApi.getDroppedPath ? watcherApi.getDroppedPath(file) : '';
-  } catch {
-    abs = '';
-  }
-  abs = abs || file.path || '';
+  const abs = absPath(file);
   const rel = file.webkitRelativePath || '';
   let folder = abs;
   if (abs && rel) {
@@ -224,7 +232,12 @@ $('folderInput').addEventListener('change', async (e) => {
     folder = abs.slice(0, abs.length - rel.length) + top;
   }
   e.target.value = ''; // allow re-picking the same folder
-  if (folder) await setFolder(folder);
+  if (folder) {
+    await setFolder(folder);
+  } else {
+    msg.className = 'ng';
+    msg.textContent = t('settings.folderMissing');
+  }
 });
 
 // --- Drag & drop a folder (reliable fallback when the native dialog misbehaves) ---
@@ -252,25 +265,14 @@ const dropZone = $('folderDrop');
   }),
 );
 function pathFromDrop(dt) {
-  // Preferred: webUtils.getPathForFile (File.path is deprecated in Electron 30+).
-  const fromFile = (f) => {
-    if (!f) return '';
-    let p = '';
-    try {
-      p = watcherApi.getDroppedPath ? watcherApi.getDroppedPath(f) : '';
-    } catch {
-      p = '';
-    }
-    return p || f.path || '';
-  };
   if (dt.files && dt.files.length) {
-    const p = fromFile(dt.files[0]);
+    const p = absPath(dt.files[0]);
     if (p) return p;
   }
   if (dt.items && dt.items.length) {
     for (const item of dt.items) {
       if (item.kind === 'file') {
-        const p = fromFile(item.getAsFile && item.getAsFile());
+        const p = absPath(item.getAsFile && item.getAsFile());
         if (p) return p;
       }
     }
