@@ -188,11 +188,29 @@ async function setFolder(path) {
   return res.valid;
 }
 
-// The native OS folder dialog is unreliable on some Windows PCs (it can hang
-// and never open). Chromium's own <input webkitdirectory> picker always opens,
-// so use it directly as the primary "Choose" action.
-$('pickFolder').addEventListener('click', () => {
-  $('folderInput').click();
+// Choose: try the native OS dialog first (it returns a plain string path — no
+// File.path/webUtils involved). If it errors, show why and fall back to the
+// in-page Chromium directory picker.
+$('pickFolder').addEventListener('click', async () => {
+  const msg = $('settingsMsg');
+  let result = null;
+  try {
+    result = await watcherApi.pickFolder();
+  } catch (err) {
+    result = { path: null, error: String(err && err.message ? err.message : err) };
+  }
+  if (result && result.path) {
+    await setFolder(result.path);
+    return;
+  }
+  if (result && result.error) {
+    // Native dialog failed to open — surface it, then use the in-page picker.
+    msg.className = 'ng';
+    msg.textContent = 'dialog: ' + result.error;
+    $('folderInput').click();
+    return;
+  }
+  // Plain cancel — leave the field as-is.
 });
 
 // Resolve a File object to its absolute on-disk path. File.path is deprecated

@@ -37,5 +37,5 @@ export interface FolderValidation {
 
 export interface PickFolderResult {
   path: string | null; // chosen folder, or null if canceled/failed
-  failed: boolean; // true when the native dialog errored (renderer falls back)
+  error: string; // non-empty when the native dialog threw (renderer shows it + falls back)
 }

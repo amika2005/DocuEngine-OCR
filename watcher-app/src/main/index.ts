@@ -162,30 +162,28 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle(IPC.getStatus, () => snapshot());
   ipcMain.handle(IPC.testConnection, () => testConnection());
-  ipcMain.handle(IPC.pickFolder, async () => {
-    // Parent the dialog to the window so it opens modal and in front (without a
-    // parent it can appear behind the window and seem unclickable). Returns
-    // {path, failed} so the renderer can fall back to the in-page picker only
-    // on a real failure (not when the user simply cancels).
+  ipcMain.handle(IPC.pickFolder, () => {
+    // Synchronous native dialog: returns the chosen path as a plain string, so
+    // there is no File / File.path / webUtils involvement. Sync (not the
+    // promise API) so it can never hang as an unresolved promise. Returns
+    // {path, error}; the renderer shows `error` and falls back to the in-page
+    // picker if the native dialog itself fails to open.
     try {
       const current = getConfig().watchFolder;
-      const options: Electron.OpenDialogOptions = {
-        properties: ['openDirectory', 'createDirectory'],
+      const options: Electron.OpenDialogSyncOptions = {
+        properties: ['openDirectory'],
         title: '監視フォルダを選択 / Select watch folder',
         defaultPath: folderExists(current) ? current : app.getPath('documents'),
       };
-      const result = window
-        ? await dialog.showOpenDialog(window, options)
-        : await dialog.showOpenDialog(options);
-      if (result.canceled || result.filePaths.length === 0) {
-        return { path: null, failed: false };
-      }
-      return { path: result.filePaths[0], failed: false };
+      const paths = window
+        ? dialog.showOpenDialogSync(window, options)
+        : dialog.showOpenDialogSync(options);
+      if (!paths || paths.length === 0) return { path: null, error: '' };
+      return { path: paths[0], error: '' };
     } catch (err) {
-      // Native dialog can be unreliable on some Windows setups; the renderer
-      // falls back to an in-page directory picker / drag-and-drop.
+      const message = err instanceof Error ? err.message : String(err);
       console.error('pickFolder failed', err);
-      return { path: null, failed: true };
+      return { path: null, error: message };
     }
   });
   ipcMain.handle(IPC.validateFolder, (_event, folder: string) => {
