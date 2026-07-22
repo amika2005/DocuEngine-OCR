@@ -198,15 +198,22 @@ $('pickFolder').addEventListener('click', () => {
 // Resolve a File object to its absolute on-disk path. File.path is deprecated
 // (empty) in recent Electron; webUtils.getPathForFile (exposed as
 // getDroppedPath) is the supported replacement.
+let lastDiag = '';
 function absPath(file) {
-  if (!file) return '';
-  let p = '';
-  try {
-    p = watcherApi.getDroppedPath ? watcherApi.getDroppedPath(file) : '';
-  } catch {
-    p = '';
+  if (!file) {
+    lastDiag = 'no-file';
+    return '';
   }
-  return p || file.path || '';
+  let viaUtil = '';
+  try {
+    viaUtil = watcherApi.getDroppedPath ? watcherApi.getDroppedPath(file) : '(no-api)';
+  } catch (err) {
+    viaUtil = 'ERR:' + (err && err.message ? err.message : err);
+  }
+  const viaProp = file.path || '';
+  lastDiag = `util=[${viaUtil}] path=[${viaProp}]`;
+  const utilOk = viaUtil && viaUtil !== '(no-api)' && !viaUtil.startsWith('ERR:');
+  return (utilOk ? viaUtil : '') || viaProp || '';
 }
 
 // Chromium directory picker. Derive the chosen folder from the first file's
@@ -235,8 +242,10 @@ $('folderInput').addEventListener('change', async (e) => {
   if (folder) {
     await setFolder(folder);
   } else {
+    // Couldn't read the on-disk path — show exactly what the platform returned
+    // so the failing API is visible instead of a generic error.
     msg.className = 'ng';
-    msg.textContent = t('settings.folderMissing');
+    msg.textContent = `n=${files.length} rel=[${rel}] ${lastDiag}`;
   }
 });
 
