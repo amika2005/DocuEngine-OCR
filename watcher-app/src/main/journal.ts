@@ -51,6 +51,11 @@ export class Journal {
     return full;
   }
 
+  /** Forget an entry entirely, so re-adding the same file uploads it again. */
+  async delete(sha256: string): Promise<void> {
+    if (this.entries.delete(sha256)) await this.persist();
+  }
+
   private async persist(): Promise<void> {
     // Serialize writes; atomic replace so a crash never corrupts the journal.
     this.saving = this.saving.then(async () => {

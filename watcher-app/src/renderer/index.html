@@ -97,6 +97,14 @@
     .state-done { color: var(--ok); } .state-failed { color: var(--ng); }
     .state-uploading { color: var(--blue); } .state-pending { color: var(--warn); }
     .state-duplicate { color: var(--muted); }
+    .col-del { width: 1%; text-align: right; white-space: nowrap; }
+    td.rowdel { text-align: right; }
+    button.del {
+      appearance: none; border: 1px solid var(--ng-soft); background: var(--ng-soft); color: var(--ng);
+      font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; cursor: pointer; font-family: inherit;
+    }
+    button.del:hover { background: var(--ng); color: #fff; border-color: var(--ng); }
+    button.del:disabled { opacity: .5; cursor: default; }
     .empty { text-align: center; color: #94a3b8; padding: 28px 0; font-size: 13px; }
     .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
   </style>
@@ -135,6 +143,7 @@
             <th data-i18n="table.file">ファイル</th>
             <th data-i18n="table.state">状態</th>
             <th data-i18n="table.updated">更新</th>
+            <th class="col-del" data-i18n="table.action">操作</th>
           </tr></thead>
           <tbody id="queue"></tbody>
         </table>
@@ -163,14 +172,6 @@
         </div>
         <input type="file" id="folderInput" webkitdirectory directory style="display:none" />
         <div class="hint" data-i18n="settings.folderHint">「選択」で選ぶ・フォルダをドラッグ＆ドロップ・パスを直接貼り付け</div>
-
-        <label for="afterUpload" data-i18n="settings.afterUpload">アップロード後の元ファイル</label>
-        <select id="afterUpload">
-          <option value="keep" data-i18n="settings.afterKeep">そのまま残す</option>
-          <option value="delete" data-i18n="settings.afterDelete">削除する</option>
-          <option value="move" data-i18n="settings.afterMove">uploaded/ フォルダへ移動</option>
-        </select>
-        <div class="hint" data-i18n="settings.afterHint">アップロードが成功した後、監視フォルダの元ファイルをどうするか</div>
 
         <div class="actions">
           <button class="btn" id="save" data-i18n="settings.save">保存して接続テスト</button>

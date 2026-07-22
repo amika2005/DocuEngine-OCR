@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('watcherApi', {
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder) as Promise<PickFolderResult>,
   validateFolder: (folder: string) =>
     ipcRenderer.invoke(IPC.validateFolder, folder) as Promise<FolderValidation>,
+  deleteEntry: (sha256: string) => ipcRenderer.invoke(IPC.deleteEntry, sha256) as Promise<void>,
   onStatusChanged: (callback: (status: StatusSnapshot) => void) => {
     ipcRenderer.on(IPC.statusChanged, (_event, status: StatusSnapshot) => callback(status));
   },

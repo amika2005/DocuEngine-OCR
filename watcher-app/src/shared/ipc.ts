@@ -1,12 +1,7 @@
-/** What to do with the original file after it uploads successfully. */
-export type AfterUpload = 'keep' | 'delete' | 'move';
-
 export interface WatcherConfig {
   serverUrl: string;
   deviceToken: string;
   watchFolder: string;
-  // keep = leave in place, delete = remove original, move = move into uploaded/
-  afterUpload: AfterUpload;
 }
 
 export interface JournalEntry {
@@ -32,6 +27,7 @@ export const IPC = {
   statusChanged: 'status:changed',
   pickFolder: 'folder:pick',
   validateFolder: 'folder:validate',
+  deleteEntry: 'entry:delete', // remove a journal entry so its file can be re-uploaded
 } as const;
 
 export interface FolderValidation {

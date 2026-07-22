@@ -22,6 +22,9 @@ const STRINGS = {
     'table.file': 'ファイル',
     'table.state': '状態',
     'table.updated': '更新',
+    'table.action': '操作',
+    'table.delete': '削除',
+    'table.deleteTitle': '一覧から削除（同じファイルを再アップロードできます）',
     'queue.empty': 'まだアップロードはありません。監視フォルダにファイルを入れてください。',
     'settings.serverUrl': 'サーバー URL',
     'settings.serverHint': 'DocuEngine サーバーのアドレス（例: http://localhost:8000）',
@@ -35,11 +38,6 @@ const STRINGS = {
     'settings.dropActive': 'フォルダをドロップ',
     'settings.folderMissing': '✗ フォルダが見つかりません。パスを確認してください',
     'settings.folderEmpty': '✗ 空のフォルダは選べません。ファイルのあるフォルダを選ぶか、パスを貼り付けてください',
-    'settings.afterUpload': 'アップロード後の元ファイル',
-    'settings.afterKeep': 'そのまま残す',
-    'settings.afterDelete': '削除する',
-    'settings.afterMove': 'uploaded/ フォルダへ移動',
-    'settings.afterHint': 'アップロードが成功した後、監視フォルダの元ファイルをどうするか',
     'settings.save': '保存して接続テスト',
     'settings.testing': '接続テスト中...',
     'settings.needAll': 'サーバー URL・トークン・監視フォルダをすべて入力してください',
@@ -67,6 +65,9 @@ const STRINGS = {
     'table.file': 'File',
     'table.state': 'Status',
     'table.updated': 'Updated',
+    'table.action': 'Action',
+    'table.delete': 'Delete',
+    'table.deleteTitle': 'Remove from the list (lets you re-upload the same file)',
     'queue.empty': 'No uploads yet. Drop files into the watch folder.',
     'settings.serverUrl': 'Server URL',
     'settings.serverHint': 'Address of the DocuEngine server (e.g. http://localhost:8000)',
@@ -80,11 +81,6 @@ const STRINGS = {
     'settings.dropActive': 'Drop folder here',
     'settings.folderMissing': '✗ Folder not found. Check the path',
     'settings.folderEmpty': '✗ Empty folder can’t be picked. Choose a folder that has files, or paste the path',
-    'settings.afterUpload': 'Original file after upload',
-    'settings.afterKeep': 'Keep it in place',
-    'settings.afterDelete': 'Delete it',
-    'settings.afterMove': 'Move to uploaded/ folder',
-    'settings.afterHint': 'What to do with the original file in the watch folder after a successful upload',
     'settings.save': 'Save & test connection',
     'settings.testing': 'Testing connection...',
     'settings.needAll': 'Enter the server URL, token and watch folder',
@@ -135,6 +131,18 @@ $('langToggle').addEventListener('click', async () => {
 
 let lastStatus = { connected: false, queue: [] };
 
+// Delete a row: forget it in the journal so the same file can be re-uploaded.
+// Delegated because the queue is re-rendered on every status update.
+$('queue').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button.del');
+  if (!btn) return;
+  const sha = btn.getAttribute('data-sha');
+  if (!sha) return;
+  btn.disabled = true;
+  await watcherApi.deleteEntry(sha);
+  renderStatus(await watcherApi.getStatus());
+});
+
 function renderQueue(queue) {
   $('queue').innerHTML = queue
     .map((entry) => {
@@ -142,7 +150,8 @@ function renderQueue(queue) {
       const label = t(`state.${entry.state}`);
       const time = new Date(entry.updatedAt).toLocaleTimeString();
       const title = entry.error ? ` title="${entry.error.replace(/"/g, '&quot;')}"` : '';
-      return `<tr><td>${name}</td><td class="state state-${entry.state}"${title}>${label}</td><td>${time}</td></tr>`;
+      const del = `<button class="del" data-sha="${entry.sha256}" title="${t('table.deleteTitle')}">${t('table.delete')}</button>`;
+      return `<tr><td>${name}</td><td class="state state-${entry.state}"${title}>${label}</td><td>${time}</td><td class="rowdel">${del}</td></tr>`;
     })
     .join('');
   $('queueEmpty').style.display = queue.length ? 'none' : 'block';
@@ -176,7 +185,6 @@ async function init() {
   $('serverUrl').value = config.serverUrl;
   $('deviceToken').value = config.deviceToken;
   $('watchFolder').value = config.watchFolder;
-  $('afterUpload').value = config.afterUpload || 'keep';
   renderStatus(await watcherApi.getStatus());
   watcherApi.onStatusChanged(renderStatus);
 }
@@ -352,7 +360,6 @@ $('save').addEventListener('click', async () => {
     serverUrl: server,
     deviceToken: token,
     watchFolder: folder,
-    afterUpload: $('afterUpload').value,
   });
   const ok = await watcherApi.testConnection();
   $('save').disabled = false;

@@ -9,7 +9,7 @@ import { FolderWatcher } from './watcher';
 
 const store = new Store<{ config: Omit<WatcherConfig, 'deviceToken'>; tokenEncrypted?: string }>({
   defaults: {
-    config: { serverUrl: '', watchFolder: '', afterUpload: 'keep' },
+    config: { serverUrl: '', watchFolder: '' },
   },
 });
 
@@ -21,11 +21,7 @@ let deviceName: string | undefined;
 const journal = new Journal(app.getPath('userData'));
 
 function getConfig(): WatcherConfig {
-  const base = store.get('config') as Omit<WatcherConfig, 'deviceToken'> & { moveUploaded?: boolean };
-  // Migrate the old boolean `moveUploaded` field to the `afterUpload` action.
-  if (base.afterUpload === undefined) {
-    base.afterUpload = base.moveUploaded ? 'move' : 'keep';
-  }
+  const base = store.get('config');
   let deviceToken = '';
   const encrypted = store.get('tokenEncrypted');
   if (encrypted) {
@@ -226,6 +222,11 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
   ipcMain.handle(IPC.validateFolder, (_event, folder: string) => {
     const p = normalizeFolder(folder);
     return { path: p, valid: folderExists(p) };
+  });
+  ipcMain.handle(IPC.deleteEntry, async (_event, sha256: string) => {
+    // Forget this file so re-adding it uploads and OCRs it again.
+    await journal.delete(sha256);
+    notifyStatus();
   });
 
   createTray();

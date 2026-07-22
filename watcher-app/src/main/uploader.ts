@@ -3,7 +3,7 @@
  * (server backpressure), automatic batching — files that appear within a 60s
  * window share one server batch so the web UI shows scanner-run progress.
  */
-import { readFile, mkdir, rename, unlink } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { WatcherConfig } from '../shared/ipc';
 import { Journal, sha256File } from './journal';
@@ -34,12 +34,11 @@ export class Uploader {
     if (existing && (existing.state === 'done' || existing.state === 'duplicate')) {
       // Same content was already uploaded. Don't re-OCR identical bytes — but if
       // the user just dropped it in, surface it as a duplicate (with a fresh
-      // timestamp so it's visibly detected) and apply the after-upload action so
-      // the redundant copy is cleaned up per the user's setting.
+      // timestamp) so it's visibly detected. To re-process it, delete its row in
+      // the app and re-add the file.
       if (isUserAdded) {
         await this.journal.upsert({ ...existing, path: filePath, state: 'duplicate' });
         this.onChange();
-        await this.afterUpload(filePath);
       }
       return;
     }
@@ -112,11 +111,9 @@ export class Uploader {
       if (response.status === 201) {
         const doc = (await response.json()) as { id: string };
         await this.journal.upsert({ ...entry, state: 'done', documentId: doc.id });
-        await this.afterUpload(entry.path);
         this.backoffMs = 1000;
       } else if (response.status === 409) {
         await this.journal.upsert({ ...entry, state: 'duplicate' });
-        await this.afterUpload(entry.path);
       } else if (response.status === 429) {
         // Server backpressure — retry the whole entry later.
         await this.retryLater(sha256, entry, 'server busy');
@@ -138,28 +135,6 @@ export class Uploader {
       this.queue.push(sha256);
       void this.pump();
     }, delay);
-  }
-
-  /**
-   * Act on the original file once it has uploaded: keep it in place, delete it,
-   * or move it into an `uploaded/` sub-folder. All failures are swallowed —
-   * a file locked by the scanner is harmless because the sha256 dedupe (and the
-   * journal `done` state) already prevents a re-upload.
-   */
-  private async afterUpload(filePath: string): Promise<void> {
-    const action = this.getConfig().afterUpload;
-    try {
-      if (action === 'delete') {
-        await unlink(filePath);
-      } else if (action === 'move') {
-        const dir = path.join(path.dirname(filePath), 'uploaded');
-        await mkdir(dir, { recursive: true });
-        await rename(filePath, path.join(dir, path.basename(filePath)));
-      }
-      // 'keep' (or anything else): leave the original untouched.
-    } catch {
-      /* file may be locked by the scanner — harmless, dedupe protects us */
-    }
   }
 
   async request(
