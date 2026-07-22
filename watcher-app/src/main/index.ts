@@ -230,13 +230,19 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
 
   createTray();
   const config = getConfig();
-  if (!config.serverUrl || !config.deviceToken || !config.watchFolder) {
-    createWindow(); // first run — show settings
+  // Show the window on a manual launch (double-clicking the exe). Only the login
+  // auto-start launches with `--hidden`, so that one stays silent in the tray.
+  // A first run with incomplete config always shows the settings window.
+  const startHidden = process.argv.includes('--hidden');
+  const configComplete = config.serverUrl && config.deviceToken && config.watchFolder;
+  if (!startHidden || !configComplete) {
+    createWindow();
   }
   startWatching();
   uploader.resume();
   void testConnection();
-  app.setLoginItemSettings({ openAtLogin: true });
+  // Auto-start at login, but silently (tray only) via the --hidden flag.
+  app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
 });
 
 // Tray app: keep running when the settings window closes.
