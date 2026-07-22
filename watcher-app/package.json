@@ -9,13 +9,15 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "npm run build && electron .",
-    "dist": "npm run build && electron-builder --win nsis portable"
+    "dist": "npm run build && electron-builder --win nsis portable",
+    "pack": "npm run build && electron-packager . \"DocuEngine Watcher\" --platform=win32 --arch=x64 --out=release-portable --overwrite"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
     "electron-store": "^8.2.0"
   },
   "devDependencies": {
+    "@electron/packager": "^18.3.3",
     "@types/node": "^20.14.0",
     "electron": "^31.3.0",
     "electron-builder": "^24.13.0",
