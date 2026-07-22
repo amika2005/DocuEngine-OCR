@@ -134,9 +134,15 @@ function updateTray(): void {
   );
 }
 
+// 16x16 teal "D" badge, inlined so the tray always has a visible, clickable
+// icon (an empty image renders nothing, leaving the user no way to reopen the
+// window). Kept as a data URL to avoid shipping a separate asset file.
+const TRAY_ICON_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAN0lEQVR4nGPgL8tjgOL/JGKwPnI1ww2hRDMYYxiACwyMAdj4owbQ2wBCmmljADlJmeLMRFF2BgBvimCD0niQPAAAAABJRU5ErkJggg==';
+
 function createTray(): void {
-  // 1x1 transparent placeholder; real icons ship with the installer assets.
-  tray = new Tray(nativeImage.createEmpty());
+  const icon = nativeImage.createFromDataURL(`data:image/png;base64,${TRAY_ICON_PNG}`);
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: '設定 / Status', click: createWindow },
@@ -144,6 +150,8 @@ function createTray(): void {
       { label: '終了', click: () => app.quit() },
     ]),
   );
+  tray.setToolTip('DocuEngine Watcher');
+  tray.on('click', createWindow); // single click also opens (Windows expectation)
   tray.on('double-click', createWindow);
   updateTray();
 }
@@ -165,7 +173,22 @@ function startWatching(): void {
   }
 }
 
-app.whenReady().then(async () => {
+// Only one watcher instance may run. This tray app has no visible window most of
+// the time, so a user who double-clicks the exe again (the natural way to "open"
+// it) would otherwise just spawn a dead duplicate. Instead, the second launch is
+// caught here and told to surface the existing instance's settings window.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    createWindow();
+    window?.show();
+    window?.focus();
+  });
+}
+
+if (gotSingleInstanceLock) app.whenReady().then(async () => {
   await journal.load();
 
   ipcMain.handle(IPC.getConfig, () => getConfig());
