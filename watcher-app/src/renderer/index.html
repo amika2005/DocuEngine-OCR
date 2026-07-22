@@ -50,7 +50,11 @@
       width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
       font-size: 14px; font-family: inherit; -webkit-user-select: text; user-select: text;
     }
-    input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    select {
+      width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+      font-size: 14px; font-family: inherit; background: var(--surface); color: var(--ink); cursor: pointer;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
     .row { display: flex; gap: 8px; align-items: flex-end; }
     .row > div { flex: 1; }
     .dropzone { position: relative; border: 1px dashed transparent; border-radius: 8px; transition: border-color .12s, background .12s; }
@@ -160,7 +164,13 @@
         <input type="file" id="folderInput" webkitdirectory directory style="display:none" />
         <div class="hint" data-i18n="settings.folderHint">「選択」で選ぶ・フォルダをドラッグ＆ドロップ・パスを直接貼り付け</div>
 
-        <label class="check"><input type="checkbox" id="moveUploaded" checked /> <span data-i18n="settings.moveUploaded">アップロード後 uploaded/ フォルダへ移動</span></label>
+        <label for="afterUpload" data-i18n="settings.afterUpload">アップロード後の元ファイル</label>
+        <select id="afterUpload">
+          <option value="keep" data-i18n="settings.afterKeep">そのまま残す</option>
+          <option value="delete" data-i18n="settings.afterDelete">削除する</option>
+          <option value="move" data-i18n="settings.afterMove">uploaded/ フォルダへ移動</option>
+        </select>
+        <div class="hint" data-i18n="settings.afterHint">アップロードが成功した後、監視フォルダの元ファイルをどうするか</div>
 
         <div class="actions">
           <button class="btn" id="save" data-i18n="settings.save">保存して接続テスト</button>

@@ -1,8 +1,12 @@
+/** What to do with the original file after it uploads successfully. */
+export type AfterUpload = 'keep' | 'delete' | 'move';
+
 export interface WatcherConfig {
   serverUrl: string;
   deviceToken: string;
   watchFolder: string;
-  moveUploaded: boolean; // move files into uploaded/ after successful upload
+  // keep = leave in place, delete = remove original, move = move into uploaded/
+  afterUpload: AfterUpload;
 }
 
 export interface JournalEntry {

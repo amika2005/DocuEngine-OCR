@@ -35,7 +35,11 @@ const STRINGS = {
     'settings.dropActive': 'フォルダをドロップ',
     'settings.folderMissing': '✗ フォルダが見つかりません。パスを確認してください',
     'settings.folderEmpty': '✗ 空のフォルダは選べません。ファイルのあるフォルダを選ぶか、パスを貼り付けてください',
-    'settings.moveUploaded': 'アップロード後 uploaded/ フォルダへ移動',
+    'settings.afterUpload': 'アップロード後の元ファイル',
+    'settings.afterKeep': 'そのまま残す',
+    'settings.afterDelete': '削除する',
+    'settings.afterMove': 'uploaded/ フォルダへ移動',
+    'settings.afterHint': 'アップロードが成功した後、監視フォルダの元ファイルをどうするか',
     'settings.save': '保存して接続テスト',
     'settings.testing': '接続テスト中...',
     'settings.needAll': 'サーバー URL・トークン・監視フォルダをすべて入力してください',
@@ -76,7 +80,11 @@ const STRINGS = {
     'settings.dropActive': 'Drop folder here',
     'settings.folderMissing': '✗ Folder not found. Check the path',
     'settings.folderEmpty': '✗ Empty folder can’t be picked. Choose a folder that has files, or paste the path',
-    'settings.moveUploaded': 'Move to uploaded/ folder after upload',
+    'settings.afterUpload': 'Original file after upload',
+    'settings.afterKeep': 'Keep it in place',
+    'settings.afterDelete': 'Delete it',
+    'settings.afterMove': 'Move to uploaded/ folder',
+    'settings.afterHint': 'What to do with the original file in the watch folder after a successful upload',
     'settings.save': 'Save & test connection',
     'settings.testing': 'Testing connection...',
     'settings.needAll': 'Enter the server URL, token and watch folder',
@@ -168,7 +176,7 @@ async function init() {
   $('serverUrl').value = config.serverUrl;
   $('deviceToken').value = config.deviceToken;
   $('watchFolder').value = config.watchFolder;
-  $('moveUploaded').checked = config.moveUploaded;
+  $('afterUpload').value = config.afterUpload || 'keep';
   renderStatus(await watcherApi.getStatus());
   watcherApi.onStatusChanged(renderStatus);
 }
@@ -344,7 +352,7 @@ $('save').addEventListener('click', async () => {
     serverUrl: server,
     deviceToken: token,
     watchFolder: folder,
-    moveUploaded: $('moveUploaded').checked,
+    afterUpload: $('afterUpload').value,
   });
   const ok = await watcherApi.testConnection();
   $('save').disabled = false;

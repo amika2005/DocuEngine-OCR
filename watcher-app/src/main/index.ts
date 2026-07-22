@@ -9,7 +9,7 @@ import { FolderWatcher } from './watcher';
 
 const store = new Store<{ config: Omit<WatcherConfig, 'deviceToken'>; tokenEncrypted?: string }>({
   defaults: {
-    config: { serverUrl: '', watchFolder: '', moveUploaded: true },
+    config: { serverUrl: '', watchFolder: '', afterUpload: 'keep' },
   },
 });
 
@@ -21,7 +21,11 @@ let deviceName: string | undefined;
 const journal = new Journal(app.getPath('userData'));
 
 function getConfig(): WatcherConfig {
-  const base = store.get('config');
+  const base = store.get('config') as Omit<WatcherConfig, 'deviceToken'> & { moveUploaded?: boolean };
+  // Migrate the old boolean `moveUploaded` field to the `afterUpload` action.
+  if (base.afterUpload === undefined) {
+    base.afterUpload = base.moveUploaded ? 'move' : 'keep';
+  }
   let deviceToken = '';
   const encrypted = store.get('tokenEncrypted');
   if (encrypted) {
