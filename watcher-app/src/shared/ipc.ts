@@ -34,3 +34,8 @@ export interface FolderValidation {
   path: string; // normalized (quotes stripped, file → its folder)
   valid: boolean; // exists and is a directory
 }
+
+export interface PickFolderResult {
+  path: string | null; // chosen folder, or null if canceled/failed
+  failed: boolean; // true when the native dialog errored (renderer falls back)
+}

@@ -164,7 +164,9 @@ app.whenReady().then(async () => {
   ipcMain.handle(IPC.testConnection, () => testConnection());
   ipcMain.handle(IPC.pickFolder, async () => {
     // Parent the dialog to the window so it opens modal and in front (without a
-    // parent it can appear behind the window and seem unclickable).
+    // parent it can appear behind the window and seem unclickable). Returns
+    // {path, failed} so the renderer can fall back to the in-page picker only
+    // on a real failure (not when the user simply cancels).
     try {
       const current = getConfig().watchFolder;
       const options: Electron.OpenDialogOptions = {
@@ -175,13 +177,15 @@ app.whenReady().then(async () => {
       const result = window
         ? await dialog.showOpenDialog(window, options)
         : await dialog.showOpenDialog(options);
-      if (result.canceled || result.filePaths.length === 0) return null;
-      return result.filePaths[0];
+      if (result.canceled || result.filePaths.length === 0) {
+        return { path: null, failed: false };
+      }
+      return { path: result.filePaths[0], failed: false };
     } catch (err) {
       // Native dialog can be unreliable on some Windows setups; the renderer
-      // falls back to drag-and-drop / paste, so just report the failure.
+      // falls back to an in-page directory picker / drag-and-drop.
       console.error('pickFolder failed', err);
-      return null;
+      return { path: null, failed: true };
     }
   });
   ipcMain.handle(IPC.validateFolder, (_event, folder: string) => {

@@ -171,13 +171,60 @@ async function init() {
   watcherApi.onStatusChanged(renderStatus);
 }
 
-$('pickFolder').addEventListener('click', async () => {
-  const folder = await watcherApi.pickFolder();
-  if (folder) {
-    $('watchFolder').value = folder;
-    $('settingsMsg').className = '';
-    $('settingsMsg').textContent = '';
+async function setFolder(path) {
+  const msg = $('settingsMsg');
+  const res = await watcherApi.validateFolder(path);
+  if (res.valid) {
+    $('watchFolder').value = res.path;
+    msg.className = 'ok';
+    msg.textContent = res.path;
+  } else {
+    $('watchFolder').value = path;
+    msg.className = 'ng';
+    msg.textContent = t('settings.folderMissing');
   }
+  return res.valid;
+}
+
+$('pickFolder').addEventListener('click', async () => {
+  const result = await watcherApi.pickFolder();
+  if (result && result.path) {
+    await setFolder(result.path);
+    return;
+  }
+  // Native OS dialog failed (unreliable on some Windows PCs) — fall back to the
+  // in-page Chromium directory picker. On plain cancel, do nothing.
+  if (result && result.failed) $('folderInput').click();
+});
+
+// Chromium directory picker fallback. Derive the chosen folder from the first
+// file's absolute path minus its in-folder relative path.
+$('folderInput').addEventListener('change', async (e) => {
+  const files = e.target.files;
+  const msg = $('settingsMsg');
+  if (!files || !files.length) {
+    msg.className = 'ng';
+    msg.textContent = t('settings.folderMissing');
+    return;
+  }
+  const file = files[0];
+  let abs = '';
+  try {
+    abs = watcherApi.getDroppedPath ? watcherApi.getDroppedPath(file) : '';
+  } catch {
+    abs = '';
+  }
+  abs = abs || file.path || '';
+  const rel = file.webkitRelativePath || '';
+  let folder = abs;
+  if (abs && rel) {
+    // abs ends with rel (separators differ but char counts match); strip the
+    // relative tail and re-append the top-level chosen folder name.
+    const top = rel.split('/')[0];
+    folder = abs.slice(0, abs.length - rel.length) + top;
+  }
+  e.target.value = ''; // allow re-picking the same folder
+  if (folder) await setFolder(folder);
 });
 
 // --- Drag & drop a folder (reliable fallback when the native dialog misbehaves) ---
@@ -204,19 +251,41 @@ const dropZone = $('folderDrop');
     dropZone.classList.remove('drag');
   }),
 );
-dropZone.addEventListener('drop', async (e) => {
-  const file = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (!file || !file.path) return;
-  const res = await watcherApi.validateFolder(file.path);
-  const msg = $('settingsMsg');
-  if (res.valid) {
-    $('watchFolder').value = res.path;
-    msg.className = '';
-    msg.textContent = '';
-  } else {
-    msg.className = 'ng';
-    msg.textContent = t('settings.folderMissing');
+function pathFromDrop(dt) {
+  // Preferred: webUtils.getPathForFile (File.path is deprecated in Electron 30+).
+  const fromFile = (f) => {
+    if (!f) return '';
+    let p = '';
+    try {
+      p = watcherApi.getDroppedPath ? watcherApi.getDroppedPath(f) : '';
+    } catch {
+      p = '';
+    }
+    return p || f.path || '';
+  };
+  if (dt.files && dt.files.length) {
+    const p = fromFile(dt.files[0]);
+    if (p) return p;
   }
+  if (dt.items && dt.items.length) {
+    for (const item of dt.items) {
+      if (item.kind === 'file') {
+        const p = fromFile(item.getAsFile && item.getAsFile());
+        if (p) return p;
+      }
+    }
+  }
+  return '';
+}
+
+dropZone.addEventListener('drop', async (e) => {
+  const dropped = pathFromDrop(e.dataTransfer);
+  if (!dropped) {
+    $('settingsMsg').className = 'ng';
+    $('settingsMsg').textContent = t('settings.folderMissing');
+    return;
+  }
+  await setFolder(dropped); // normalizes a dropped file → its parent folder
 });
 
 $('save').addEventListener('click', async () => {
