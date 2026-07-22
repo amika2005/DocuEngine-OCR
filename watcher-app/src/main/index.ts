@@ -103,7 +103,17 @@ function createWindow(): void {
     width: 720,
     height: 560,
     title: 'DocuEngine Watcher',
-    webPreferences: { preload: path.join(__dirname, 'preload.js') },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      // The preload requires a local module (../shared/ipc). Electron's default
+      // sandbox only lets a preload require Electron built-ins, so the require
+      // throws and contextBridge never exposes `watcherApi` — breaking the whole
+      // settings UI. Disable the sandbox (contextIsolation stays on, so the
+      // renderer is still isolated) so the preload can load its dependencies.
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
   });
   void window.loadFile(path.join(__dirname, '..', '..', 'src', 'renderer', 'index.html'));
   window.on('closed', () => {
