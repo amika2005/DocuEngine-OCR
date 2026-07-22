@@ -24,11 +24,25 @@ export class Uploader {
     private onChange: () => void,
   ) {}
 
-  /** Called by the watcher for every stable new file. */
-  async enqueueFile(filePath: string): Promise<void> {
+  /**
+   * Called by the watcher for every stable file. `isUserAdded` is true for files
+   * that arrive after the initial folder scan (a fresh scan or a manual drop).
+   */
+  async enqueueFile(filePath: string, isUserAdded = false): Promise<void> {
     const sha256 = await sha256File(filePath);
     const existing = this.journal.get(sha256);
-    if (existing && (existing.state === 'done' || existing.state === 'duplicate')) return;
+    if (existing && (existing.state === 'done' || existing.state === 'duplicate')) {
+      // Same content was already uploaded. Don't re-OCR identical bytes — but if
+      // the user just dropped it in, surface it as a duplicate (with a fresh
+      // timestamp so it's visibly detected) and apply the after-upload action so
+      // the redundant copy is cleaned up per the user's setting.
+      if (isUserAdded) {
+        await this.journal.upsert({ ...existing, path: filePath, state: 'duplicate' });
+        this.onChange();
+        await this.afterUpload(filePath);
+      }
+      return;
+    }
     await this.journal.upsert({ path: filePath, sha256, state: 'pending' });
     this.queue.push(sha256);
     this.onChange();
