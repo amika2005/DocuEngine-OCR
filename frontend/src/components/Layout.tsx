@@ -33,9 +33,10 @@ export default function Layout({ children }: { children: ReactNode }) {
     links.push({ to: '/scan', label: t('nav.scan'), icon: ScanLine });
     links.push({ to: '/documents', label: t('nav.documents'), icon: FileText });
     links.push({ to: '/corrections', label: t('nav.corrections'), icon: PenLine });
+    // Masters are read-only for regular users, editable for admins.
+    links.push({ to: '/company/masters', label: t('nav.masters'), icon: Database });
   }
   if (me?.role === 'company_admin') {
-    links.push({ to: '/company/masters', label: t('nav.masters'), icon: Database });
     links.push({ to: '/company/templates', label: t('nav.templates'), icon: LayoutTemplate });
     links.push({ to: '/company/users', label: t('nav.users'), icon: Users });
     links.push({ to: '/company/devices', label: t('nav.devices'), icon: Printer });

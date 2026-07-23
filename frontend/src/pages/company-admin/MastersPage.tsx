@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import { useLiveInvalidate } from '../../api/useEvents';
 import MasterImportWizard from '../../components/MasterImportWizard';
 import type {
@@ -19,6 +20,9 @@ const KIND_ORDER: MasterKind[] = ['product', 'client', 'supplier', 'other'];
 
 export default function MastersPage() {
   const { t } = useTranslation();
+  const { me } = useAuth();
+  // Regular users see masters read-only; only company admins mutate them.
+  const canEdit = me?.role === 'company_admin';
   const queryClient = useQueryClient();
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [showTypeForm, setShowTypeForm] = useState(false);
@@ -43,22 +47,26 @@ export default function MastersPage() {
     <div>
       <div className="mb-4 flex items-center gap-2">
         <h1 className="text-xl font-bold">{t('masters.title')}</h1>
-        <button
-          onClick={() => setImportFor('ask')}
-          className="ml-auto rounded border border-slate-300 bg-white px-4 py-1.5 text-sm hover:bg-slate-50"
-        >
-          {t('masters.importCsv')}
-        </button>
-        <button
-          onClick={() => setShowTypeForm((value) => !value)}
-          className="rounded bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700"
-        >
-          {t('masters.addType')}
-        </button>
+        {canEdit && (
+          <>
+            <button
+              onClick={() => setImportFor('ask')}
+              className="ml-auto rounded border border-slate-300 bg-white px-4 py-1.5 text-sm hover:bg-slate-50"
+            >
+              {t('masters.importCsv')}
+            </button>
+            <button
+              onClick={() => setShowTypeForm((value) => !value)}
+              className="rounded bg-slate-900 px-4 py-1.5 text-sm text-white hover:bg-slate-700"
+            >
+              {t('masters.addType')}
+            </button>
+          </>
+        )}
       </div>
 
       {error && <p className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
-      {showTypeForm && (
+      {canEdit && showTypeForm && (
         <TypeForm
           onDone={() => {
             setShowTypeForm(false);
@@ -113,6 +121,7 @@ export default function MastersPage() {
           {selected && (
             <RecordsPanel
               type={selected}
+              canEdit={canEdit}
               onDeleteType={() => deleteType(selected)}
               onImport={() => setImportFor(selected.id)}
             />
@@ -248,10 +257,12 @@ function TypeForm({ onDone, onError }: { onDone: () => void; onError: (msg: stri
 
 function RecordsPanel({
   type,
+  canEdit,
   onDeleteType,
   onImport,
 }: {
   type: MasterType;
+  canEdit: boolean;
   onDeleteType: () => void;
   onImport: () => void;
 }) {
@@ -295,26 +306,30 @@ function RecordsPanel({
           }}
           className="ml-auto w-56 rounded border border-slate-300 px-3 py-1.5 text-sm"
         />
-        <button
-          onClick={onImport}
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-        >
-          {t('masters.importCsv')}
-        </button>
-        <button
-          onClick={() => setEditing('new')}
-          disabled={type.fields.length === 0}
-          title={type.fields.length === 0 ? t('masters.noFieldsHint') : undefined}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {t('masters.addRecord')}
-        </button>
-        <button onClick={onDeleteType} className="px-2 text-xs text-red-600 hover:underline">
-          {t('common.delete')}
-        </button>
+        {canEdit && (
+          <>
+            <button
+              onClick={onImport}
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+            >
+              {t('masters.importCsv')}
+            </button>
+            <button
+              onClick={() => setEditing('new')}
+              disabled={type.fields.length === 0}
+              title={type.fields.length === 0 ? t('masters.noFieldsHint') : undefined}
+              className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {t('masters.addRecord')}
+            </button>
+            <button onClick={onDeleteType} className="px-2 text-xs text-red-600 hover:underline">
+              {t('common.delete')}
+            </button>
+          </>
+        )}
       </div>
 
-      {editing && (
+      {canEdit && editing && (
         <RecordForm
           type={type}
           record={editing === 'new' ? null : editing}
@@ -335,7 +350,7 @@ function RecordsPanel({
                 {field.matchable && <span className="ml-1 text-green-600" title={t('masters.matchable')}>✓</span>}
               </th>
             ))}
-            <th className="w-24 px-3 py-2" />
+            {canEdit && <th className="w-24 px-3 py-2" />}
           </tr>
         </thead>
         <tbody>
@@ -346,19 +361,21 @@ function RecordsPanel({
                   {record.data[field.key] || '—'}
                 </td>
               ))}
-              <td className="px-3 py-2 text-right text-xs">
-                <button onClick={() => setEditing(record)} className="mr-2 text-blue-700 hover:underline">
-                  {t('masters.edit')}
-                </button>
-                <button onClick={() => deleteRecord(record)} className="text-red-600 hover:underline">
-                  {t('common.delete')}
-                </button>
-              </td>
+              {canEdit && (
+                <td className="px-3 py-2 text-right text-xs">
+                  <button onClick={() => setEditing(record)} className="mr-2 text-blue-700 hover:underline">
+                    {t('masters.edit')}
+                  </button>
+                  <button onClick={() => deleteRecord(record)} className="text-red-600 hover:underline">
+                    {t('common.delete')}
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
           {data?.items.length === 0 && (
             <tr>
-              <td colSpan={type.fields.length + 1} className="px-3 py-8 text-center text-slate-400">
+              <td colSpan={type.fields.length + (canEdit ? 1 : 0)} className="px-3 py-8 text-center text-slate-400">
                 {type.fields.length === 0 ? t('masters.noFieldsHint') : t('masters.noRecords')}
               </td>
             </tr>

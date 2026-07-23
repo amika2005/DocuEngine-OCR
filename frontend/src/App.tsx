@@ -48,11 +48,13 @@ export default function App() {
             <Route path="/documents/:id" element={<DocumentDetailPage />} />
             <Route path="/pages/:pageId/correct" element={<CorrectionEditorPage />} />
             <Route path="/corrections" element={<CorrectionsPage />} />
+            {/* Masters are visible to every tenant user (read-only for regular
+                users; the page hides all mutation UI unless role is admin). */}
+            <Route path="/company/masters" element={<MastersPage />} />
           </>
         )}
         {me.role === 'company_admin' && (
           <>
-            <Route path="/company/masters" element={<MastersPage />} />
             <Route path="/company/templates" element={<TemplatesPage />} />
             <Route path="/company/users" element={<UsersPage />} />
             <Route path="/company/devices" element={<DevicesPage />} />
