@@ -71,6 +71,17 @@ def test_same_content_allowed_across_tenants(client, auth, seed):
     assert _upload(client, auth("user_b"), "form.pdf", content).status_code == 201
 
 
+def test_same_content_allowed_across_users_in_one_company(client, auth, seed):
+    # An admin scanning a document (private to them) must not block a regular
+    # user in the same company from scanning the same file: dedup is per-uploader.
+    content = b"%PDF-1.4 same-company-shared-scan"
+    admin_doc = _upload(client, auth("admin_a"), "scan.pdf", content)
+    assert admin_doc.status_code == 201
+    user_doc = _upload(client, auth("user_a"), "scan.pdf", content)
+    assert user_doc.status_code == 201
+    assert user_doc.json()["id"] != admin_doc.json()["id"]
+
+
 def test_unsupported_type_rejected(client, auth, seed):
     response = client.post(
         "/api/v1/documents",

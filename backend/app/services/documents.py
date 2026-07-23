@@ -46,12 +46,21 @@ def create_document(
     if suffix not in ALLOWED_SUFFIXES:
         raise UnsupportedFileTypeError(f"unsupported file type: {suffix or '(none)'}")
 
+    # Duplicate detection is scoped to the uploader, not the whole company:
+    # each person (and each device) has their own dedup namespace. This stops a
+    # user being blocked as a "duplicate" by someone else's copy — often a
+    # private document they can't even see — while still catching a person (or
+    # the watcher) re-uploading the exact same file.
     sha256 = storage.sha256_bytes(content)
-    existing = db.scalar(
-        select(Document).where(
-            Document.company_id == company_id, Document.content_sha256 == sha256
-        )
-    )
+    conditions = [
+        Document.company_id == company_id,
+        Document.content_sha256 == sha256,
+    ]
+    if uploaded_by_user_id is not None:
+        conditions.append(Document.uploaded_by_user_id == uploaded_by_user_id)
+    elif uploaded_by_device_id is not None:
+        conditions.append(Document.uploaded_by_device_id == uploaded_by_device_id)
+    existing = db.scalar(select(Document).where(*conditions))
     if existing is not None:
         raise DuplicateDocumentError(existing.id)
 

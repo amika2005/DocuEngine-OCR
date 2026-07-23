@@ -51,7 +51,11 @@ class Batch(Base, UUIDMixin, TimestampMixin):
 class Document(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "documents"
     __table_args__ = (
-        sa.UniqueConstraint("company_id", "content_sha256", name="uq_documents_company_sha"),
+        # Dedup is scoped to the uploader in application code (see
+        # services/documents.create_document), so this is a plain lookup index,
+        # not a company-wide UNIQUE — otherwise one user's copy would block
+        # another user in the same company from scanning the same file.
+        sa.Index("ix_documents_company_sha", "company_id", "content_sha256"),
         sa.Index("ix_documents_company_status", "company_id", "status"),
         sa.Index("ix_documents_company_created", "company_id", "created_at"),
     )
