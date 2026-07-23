@@ -233,6 +233,27 @@ def dismiss_match(db: Session, match: MasterMatch) -> None:
     db.commit()
 
 
+def match_for_field_value(matches: list[MasterMatch], value: str) -> MasterMatch | None:
+    """Pick the best MasterMatch that corresponds to an extracted field value.
+
+    Extracted field values come from the same OCR text that match_document
+    scans, so a field usually maps to an existing match on the same page. We
+    compare against both matched_text (pre-link) and master_value (post-link,
+    since link_match rewrites the OCR text to the master value) so the link
+    state is stable before and after linking. Highest score wins.
+    """
+    norm_value = normalize_ja(value)
+    if len(norm_value) < MIN_VALUE_LENGTH:
+        return None
+    best: MasterMatch | None = None
+    for match in matches:
+        targets = (normalize_ja(match.matched_text), normalize_ja(match.master_value))
+        if any(norm_value == t or norm_value in t or t in norm_value for t in targets if t):
+            if best is None or match.score > best.score:
+                best = match
+    return best
+
+
 def rewrite_document_markdown(db: Session, page_id: uuid.UUID) -> None:
     """Reassemble the document-level markdown file after a page's result
     changed (master link or an inline result edit)."""

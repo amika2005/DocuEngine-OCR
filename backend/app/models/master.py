@@ -9,6 +9,16 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 from app.models.company import JSONB
 
 
+class MasterKind(str, enum.Enum):
+    """What a master type represents, so product/client/supplier lists can be
+    shown and grouped separately in the UI."""
+
+    product = "product"
+    client = "client"
+    supplier = "supplier"
+    other = "other"
+
+
 class MasterType(Base, UUIDMixin, TimestampMixin):
     """A company-defined master data category (得意先, 商品, 仕入先, ...).
     `fields` defines the record schema:
@@ -22,6 +32,10 @@ class MasterType(Base, UUIDMixin, TimestampMixin):
         sa.Uuid, sa.ForeignKey("companies.id", ondelete="CASCADE"), index=True, nullable=False
     )
     name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    kind: Mapped[str] = mapped_column(
+        sa.String(16), default=MasterKind.other.value, server_default="other",
+        nullable=False, index=True,
+    )
     fields: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("users.id", ondelete="SET NULL")

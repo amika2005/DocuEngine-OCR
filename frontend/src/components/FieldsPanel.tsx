@@ -1,21 +1,34 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
-import type { ExtractedField, ExtractionResult } from '../api/types';
+import type { ExtractedField, ExtractionResult, FieldMatches, MasterMatch } from '../api/types';
 
 interface Props {
   documentId: string;
   filename: string;
   extraction: ExtractionResult;
+  /** Field key → its best master match, for the per-field link state. */
+  fieldMatches?: FieldMatches;
   onChanged: () => void;
   /** Hover sync with the page image: pass the field so the page can highlight
    *  its source region. */
   onFieldHover: (field: ExtractedField | null) => void;
+  /** Open the master link/dismiss popup anchored to the clicked icon. */
+  onMatchClick?: (match: MasterMatch, anchor: HTMLElement) => void;
 }
 
 /** Extracted template fields as an editable key-value form. Missing required
- *  fields are red, low-confidence values amber; edits save per field. */
-export default function FieldsPanel({ documentId, filename, extraction, onChanged, onFieldHover }: Props) {
+ *  fields are red, low-confidence values amber; edits save per field. A field
+ *  whose value matches a master record shows a link-state icon. */
+export default function FieldsPanel({
+  documentId,
+  filename,
+  extraction,
+  fieldMatches,
+  onChanged,
+  onFieldHover,
+  onMatchClick,
+}: Props) {
   const { t } = useTranslation();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -74,6 +87,8 @@ export default function FieldsPanel({ documentId, filename, extraction, onChange
               const dirty = drafts[field.key] !== undefined && drafts[field.key] !== (field.value ?? '');
               const missing = field.missing && field.required;
               const lowConf = !field.missing && field.confidence < 0.7;
+              const match = fieldMatches?.[field.key];
+              const linked = match?.status === 'linked';
               return (
                 <tr
                   key={field.key}
@@ -106,7 +121,31 @@ export default function FieldsPanel({ documentId, filename, extraction, onChange
                       } focus:border-sky-400`}
                     />
                   </td>
-                  <td className="w-16 px-2 py-2 text-right align-middle">
+                  <td className="w-24 px-2 py-2 text-right align-middle">
+                    {match && onMatchClick && (
+                      <button
+                        type="button"
+                        onClick={(event) => onMatchClick(match, event.currentTarget)}
+                        title={linked ? t('masters.linked') : t('masters.linkField')}
+                        className={`mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded align-middle ${
+                          linked
+                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                        }`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          {linked ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          ) : (
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M13.5 6.5l1-1a4 4 0 015.5 5.5l-2 2a4 4 0 01-5.5 0M10.5 17.5l-1 1a4 4 0 01-5.5-5.5l2-2a4 4 0 015.5 0"
+                            />
+                          )}
+                        </svg>
+                      </button>
+                    )}
                     {busyKey === field.key ? (
                       <span className="text-xs text-slate-400">…</span>
                     ) : dirty ? (

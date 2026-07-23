@@ -16,6 +16,7 @@ from app.db.session import get_db
 from app.events.publisher import publish_event
 from app.models import (
     Document,
+    MasterKind,
     MasterMatch,
     MasterRecord,
     MasterType,
@@ -39,14 +40,19 @@ class MasterFieldSchema(BaseModel):
     required: bool = False
 
 
+_MASTER_KINDS = {k.value for k in MasterKind}
+
+
 class MasterTypeIn(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    kind: str = MasterKind.other.value
     fields: list[MasterFieldSchema]
 
 
 class MasterTypeOut(BaseModel):
     id: uuid.UUID
     name: str
+    kind: str
     fields: list[dict]
     records_count: int = 0
     created_at: datetime
@@ -126,11 +132,11 @@ def list_types(user: User = Depends(require_company_member), db: Session = Depen
     types = db.scalars(
         select(MasterType)
         .where(MasterType.company_id == user.company_id)
-        .order_by(MasterType.created_at)
+        .order_by(MasterType.kind, MasterType.created_at)
     ).all()
     return [
         MasterTypeOut(
-            id=t.id, name=t.name, fields=t.fields,
+            id=t.id, name=t.name, kind=t.kind, fields=t.fields,
             records_count=counts.get(t.id, 0), created_at=t.created_at,
         )
         for t in types
@@ -143,6 +149,8 @@ def create_type(
     admin: User = Depends(require_company_admin),
     db: Session = Depends(get_db),
 ):
+    if body.kind not in _MASTER_KINDS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown master kind '{body.kind}'")
     try:
         fields = matching.validate_fields([field.model_dump() for field in body.fields])
     except ValueError as exc:
@@ -154,7 +162,8 @@ def create_type(
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, "A master type with this name exists")
     master_type = MasterType(
-        company_id=admin.company_id, name=body.name, fields=fields, created_by=admin.id
+        company_id=admin.company_id, name=body.name, kind=body.kind,
+        fields=fields, created_by=admin.id,
     )
     db.add(master_type)
     db.flush()
@@ -163,8 +172,8 @@ def create_type(
     db.commit()
     publish_event(admin.company_id, "masters.changed", {"action": "type_created"})
     return MasterTypeOut(
-        id=master_type.id, name=master_type.name, fields=master_type.fields,
-        records_count=0, created_at=master_type.created_at,
+        id=master_type.id, name=master_type.name, kind=master_type.kind,
+        fields=master_type.fields, records_count=0, created_at=master_type.created_at,
     )
 
 
@@ -176,6 +185,8 @@ def update_type(
     db: Session = Depends(get_db),
 ):
     master_type = _get_type(db, admin, type_id)
+    if body.kind not in _MASTER_KINDS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown master kind '{body.kind}'")
     try:
         master_type.fields = matching.validate_fields(
             [field.model_dump() for field in body.fields]
@@ -183,6 +194,7 @@ def update_type(
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     master_type.name = body.name
+    master_type.kind = body.kind
     db.commit()
     publish_event(admin.company_id, "masters.changed", {"action": "type_updated"})
     records = db.scalar(
@@ -191,8 +203,8 @@ def update_type(
         )
     )
     return MasterTypeOut(
-        id=master_type.id, name=master_type.name, fields=master_type.fields,
-        records_count=records, created_at=master_type.created_at,
+        id=master_type.id, name=master_type.name, kind=master_type.kind,
+        fields=master_type.fields, records_count=records, created_at=master_type.created_at,
     )
 
 
@@ -512,6 +524,26 @@ async def import_records(
 
 # --- Matches (mounted without the /masters prefix) ---
 
+def _build_match_out(match: MasterMatch, record: MasterRecord, master_type: MasterType) -> MatchOut:
+    labels = {field["key"]: field["label"] for field in master_type.fields}
+    return MatchOut(
+        id=match.id,
+        page_id=match.page_id,
+        master_record_id=record.id,
+        master_type_id=master_type.id,
+        master_type_name=master_type.name,
+        field_key=match.field_key,
+        field_label=labels.get(match.field_key, match.field_key),
+        matched_text=match.matched_text,
+        master_value=match.master_value,
+        record_data=record.data,
+        field_labels=labels,
+        score=match.score,
+        kind=match.kind,
+        status=match.status,
+    )
+
+
 @match_router.get("/pages/{page_id}/matches", response_model=list[MatchOut])
 def page_matches(
     page_id: uuid.UUID,
@@ -531,28 +563,76 @@ def page_matches(
         )
         .order_by(MasterMatch.score.desc())
     ).all()
-    out = []
-    for match, record, master_type in rows:
-        labels = {field["key"]: field["label"] for field in master_type.fields}
-        out.append(
-            MatchOut(
-                id=match.id,
-                page_id=match.page_id,
-                master_record_id=record.id,
-                master_type_id=master_type.id,
-                master_type_name=master_type.name,
-                field_key=match.field_key,
-                field_label=labels.get(match.field_key, match.field_key),
-                matched_text=match.matched_text,
-                master_value=match.master_value,
-                record_data=record.data,
-                field_labels=labels,
-                score=match.score,
-                kind=match.kind,
-                status=match.status,
-            )
+    return [_build_match_out(match, record, master_type) for match, record, master_type in rows]
+
+
+# Extracted structured fields that hold names (client/product) — master matching
+# targets text, so skip typed fields whose normalized value won't match OCR text.
+_UNMATCHABLE_FIELD_TYPES = {"date", "amount", "number"}
+
+
+@match_router.get("/documents/{document_id}/field-matches", response_model=dict[str, MatchOut])
+def document_field_matches(
+    document_id: uuid.UUID,
+    user: User = Depends(require_company_member),
+    db: Session = Depends(get_db),
+):
+    """Map each extracted field (Fields tab) to its best master match, so the UI
+    can show a per-field link state. Read-only projection over existing matches;
+    linking/unlinking reuses the /matches/{id}/link|dismiss endpoints."""
+    document = db.get(Document, document_id)
+    if document is None or document.company_id != user.company_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    fields = (document.extracted_json or {}).get("fields") or []
+    candidates = [
+        field
+        for field in fields
+        if str(field.get("value") or "").strip()
+        and field.get("page_number")
+        and field.get("type") not in _UNMATCHABLE_FIELD_TYPES
+    ]
+    if not candidates:
+        return {}
+
+    page_numbers = {field["page_number"] for field in candidates}
+    pages = db.scalars(
+        select(Page).where(
+            Page.document_id == document.id, Page.page_number.in_(page_numbers)
         )
-    return out
+    ).all()
+    number_to_page = {page.page_number: page for page in pages}
+
+    rows = db.execute(
+        select(MasterMatch, MasterRecord, MasterType)
+        .join(MasterRecord, MasterMatch.master_record_id == MasterRecord.id)
+        .join(MasterType, MasterMatch.master_type_id == MasterType.id)
+        .where(
+            MasterMatch.page_id.in_([page.id for page in pages]),
+            MasterMatch.status != MatchStatus.dismissed.value,
+        )
+        .order_by(MasterMatch.score.desc())
+    ).all()
+    # Group (match, record, type) tuples by their page id.
+    by_page: dict[uuid.UUID, list[tuple]] = {}
+    for row in rows:
+        by_page.setdefault(row[0].page_id, []).append(row)
+
+    result: dict[str, MatchOut] = {}
+    for field in candidates:
+        page = number_to_page.get(field["page_number"])
+        if page is None:
+            continue
+        page_rows = by_page.get(page.id, [])
+        best = matching.match_for_field_value(
+            [row[0] for row in page_rows], str(field["value"])
+        )
+        if best is None:
+            continue
+        record, master_type = next(
+            (row[1], row[2]) for row in page_rows if row[0].id == best.id
+        )
+        result[field["key"]] = _build_match_out(best, record, master_type)
+    return result
 
 
 def _get_match(db: Session, user: User, match_id: uuid.UUID) -> MasterMatch:

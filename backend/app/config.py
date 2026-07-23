@@ -45,7 +45,9 @@ class Settings(BaseSettings):
 
     training_enabled: bool = False
     training_min_corrections: int = 200
-    training_schedule_hour_jst: int = 2
+    # Weekly training window (JST). day_of_week accepts "sun".."sat" or 0..6.
+    training_schedule_hour_jst: int = 22
+    training_schedule_day_of_week: str = "sun"
     training_wall_clock_hours: int = 4
 
     ingest_max_queue_depth: int = 2000

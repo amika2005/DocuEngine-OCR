@@ -38,6 +38,14 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _trainer_ready() -> bool:
+    """Whether the real fine-tune/eval backend is wired up. Until then a
+    scheduled run must short-circuit to a clean status instead of pausing the
+    OCR GPU queue for a run that cannot actually train. Set TRAINER_READY=true
+    once finetune_* and _evaluate are implemented."""
+    return os.environ.get("TRAINER_READY", "").strip().lower() in {"1", "true", "yes"}
+
+
 def _pause_ocr_workers() -> None:
     celery_app.control.cancel_consumer(OCR_QUEUE, reply=False)
 
@@ -68,6 +76,15 @@ def run_training(company_id: str, training_run_id: str | None = None) -> None:
         if stats.train_pairs == 0:
             run.status = TrainingRunStatus.error.value
             run.eval_report = {"reason": "no approved corrections to train on"}
+            run.finished_at = _utcnow()
+            db.commit()
+            return
+
+        # Until the real training/eval backend is wired up, stop here with a
+        # clear reason — without pausing the OCR GPU queue for nothing.
+        if not _trainer_ready():
+            run.status = TrainingRunStatus.error.value
+            run.eval_report = {"reason": "training backend not configured"}
             run.finished_at = _utcnow()
             db.commit()
             return

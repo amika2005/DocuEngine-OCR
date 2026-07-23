@@ -73,9 +73,13 @@ celery_app.conf.update(
     broker_transport_options={"priority_steps": [0, 5, 9], "visibility_timeout": 600},
     timezone="Asia/Tokyo",
     beat_schedule={
-        "nightly-training-window": {
+        "weekly-training-window": {
             "task": "app.tasks.maintenance.maybe_start_training",
-            "schedule": crontab(hour=settings.training_schedule_hour_jst, minute=0),
+            "schedule": crontab(
+                hour=settings.training_schedule_hour_jst,
+                minute=0,
+                day_of_week=settings.training_schedule_day_of_week,
+            ),
         },
         "hourly-cleanup": {
             "task": "app.tasks.maintenance.cleanup_stale_uploads",

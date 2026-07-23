@@ -4,6 +4,7 @@ from app.models.correction import Correction, CorrectionStatus
 from app.models.device import Device
 from app.models.document import Batch, BatchStatus, Document, DocumentStatus, DocType
 from app.models.master import (
+    MasterKind,
     MasterMatch,
     MasterRecord,
     MasterType,
@@ -28,6 +29,7 @@ __all__ = [
     "DocType",
     "Document",
     "DocumentStatus",
+    "MasterKind",
     "MasterMatch",
     "MasterRecord",
     "MasterType",

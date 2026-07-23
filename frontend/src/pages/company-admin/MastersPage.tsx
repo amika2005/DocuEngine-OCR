@@ -4,9 +4,18 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
 import { useLiveInvalidate } from '../../api/useEvents';
 import MasterImportWizard from '../../components/MasterImportWizard';
-import type { MasterField, MasterRecord, MasterRecordList, MasterType } from '../../api/types';
+import type {
+  MasterField,
+  MasterKind,
+  MasterRecord,
+  MasterRecordList,
+  MasterType,
+} from '../../api/types';
 
 const EMPTY_FIELD: MasterField = { key: '', label: '', matchable: true, required: false };
+
+// Order in which kind sections appear in the sidebar.
+const KIND_ORDER: MasterKind[] = ['product', 'client', 'supplier', 'other'];
 
 export default function MastersPage() {
   const { t } = useTranslation();
@@ -61,27 +70,38 @@ export default function MastersPage() {
       )}
 
       <div className="flex gap-4">
-        <aside className="w-56 shrink-0 space-y-1">
-          {types?.map((type) => (
-            <button
-              key={type.id}
-              onClick={() => setSelectedTypeId(type.id)}
-              className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${
-                selected?.id === type.id
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-white text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <span className="truncate">{type.name}</span>
-              <span
-                className={`ml-2 rounded-full px-1.5 text-xs ${
-                  selected?.id === type.id ? 'bg-slate-700' : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                {type.records_count}
-              </span>
-            </button>
-          ))}
+        <aside className="w-56 shrink-0 space-y-3">
+          {KIND_ORDER.map((kind) => {
+            const group = types?.filter((type) => (type.kind ?? 'other') === kind) ?? [];
+            if (group.length === 0) return null;
+            return (
+              <div key={kind} className="space-y-1">
+                <p className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {t(`masters.kinds.${kind}`)}
+                </p>
+                {group.map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => setSelectedTypeId(type.id)}
+                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${
+                      selected?.id === type.id
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="truncate">{type.name}</span>
+                    <span
+                      className={`ml-2 rounded-full px-1.5 text-xs ${
+                        selected?.id === type.id ? 'bg-slate-700' : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {type.records_count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            );
+          })}
           {types?.length === 0 && (
             <p className="rounded-md bg-white p-4 text-center text-xs text-slate-400">
               {t('masters.noTypes')}
@@ -118,6 +138,7 @@ export default function MastersPage() {
 function TypeForm({ onDone, onError }: { onDone: () => void; onError: (msg: string) => void }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
+  const [kind, setKind] = useState<MasterKind>('other');
   // Starting with no fields is fine — the first bulk import derives the
   // columns from the file's header row.
   const [fields, setFields] = useState<MasterField[]>([]);
@@ -131,7 +152,10 @@ function TypeForm({ onDone, onError }: { onDone: () => void; onError: (msg: stri
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     try {
-      await api('/masters/types', { method: 'POST', body: JSON.stringify({ name, fields }) });
+      await api('/masters/types', {
+        method: 'POST',
+        body: JSON.stringify({ name, kind, fields }),
+      });
       onDone();
     } catch (error) {
       onError(String((error as ApiError).message));
@@ -146,8 +170,20 @@ function TypeForm({ onDone, onError }: { onDone: () => void; onError: (msg: stri
           placeholder={t('masters.typeName')}
           value={name}
           onChange={(event) => setName(event.target.value)}
-          className="w-64 rounded border border-slate-300 px-3 py-1.5"
+          className="w-56 rounded border border-slate-300 px-3 py-1.5"
         />
+        <select
+          value={kind}
+          onChange={(event) => setKind(event.target.value as MasterKind)}
+          title={t('masters.kind')}
+          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+        >
+          {KIND_ORDER.map((k) => (
+            <option key={k} value={k}>
+              {t(`masters.kinds.${k}`)}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           onClick={() => setFields((current) => [...current, { ...EMPTY_FIELD }])}

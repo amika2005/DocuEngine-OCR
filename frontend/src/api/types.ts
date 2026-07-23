@@ -140,9 +140,12 @@ export interface MasterField {
   required: boolean;
 }
 
+export type MasterKind = 'product' | 'client' | 'supplier' | 'other';
+
 export interface MasterType {
   id: string;
   name: string;
+  kind: MasterKind;
   fields: MasterField[];
   records_count: number;
   created_at: string;
@@ -178,6 +181,9 @@ export interface MasterMatch {
   kind: 'exact' | 'fuzzy';
   status: 'suggested' | 'linked' | 'dismissed';
 }
+
+/** Extracted field key → its best master match, for the Fields tab link state. */
+export type FieldMatches = Record<string, MasterMatch>;
 
 export interface TrainingRun {
   id: string;

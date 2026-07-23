@@ -7,6 +7,7 @@ import type {
   Document,
   DocumentList,
   ExtractedField,
+  FieldMatches,
   MasterMatch,
   OcrResult,
   Page,
@@ -212,6 +213,12 @@ export default function DocumentDetailPage() {
     queryFn: () => api<MasterMatch[]>(`/pages/${currentPage!.id}/matches`),
     enabled: !!currentPage,
   });
+  // Per-field master link state for the Fields tab (whole-document, all pages).
+  const { data: fieldMatches } = useQuery({
+    queryKey: ['document-field-matches', id],
+    queryFn: () => api<FieldMatches>(`/documents/${id}/field-matches`),
+    enabled: hasExtraction,
+  });
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['document', id] });
@@ -219,6 +226,7 @@ export default function DocumentDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['document-markdown', id] });
     queryClient.invalidateQueries({ queryKey: ['page-result'] });
     queryClient.invalidateQueries({ queryKey: ['page-matches'] });
+    queryClient.invalidateQueries({ queryKey: ['document-field-matches', id] });
   }, [id, queryClient]);
 
   const onEvent = useCallback(
@@ -566,8 +574,10 @@ export default function DocumentDetailPage() {
                 documentId={doc.id}
                 filename={doc.original_filename}
                 extraction={doc.extracted_json}
+                fieldMatches={fieldMatches}
                 onChanged={invalidateAll}
                 onFieldHover={onFieldHover}
+                onMatchClick={(match, anchor) => setPopup({ match, anchor })}
               />
             )}
             {resultTab === 'markdown' && editingResult && (
