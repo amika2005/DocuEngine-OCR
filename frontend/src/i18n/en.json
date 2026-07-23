@@ -33,6 +33,8 @@
     "matchable": "Matchable",
     "required": "Required",
     "matchableHint": "Matchable fields are compared against OCR output automatically; hits are highlighted.",
+    "learnedSpellings": "Learned spellings",
+    "aliasHint": "When a misread name is linked to this record, the exact scanned text is remembered so future scans link automatically.",
     "noTypes": "No master types yet",
     "noRecords": "No records yet",
     "addRecord": "Add record",

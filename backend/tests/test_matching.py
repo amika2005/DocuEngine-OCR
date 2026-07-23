@@ -172,6 +172,51 @@ def test_link_match_corrects_markdown_and_records_correction(db, seed, customer_
     assert "株式会社サンプル商事" in md_path.read_text(encoding="utf-8")
 
 
+def test_alias_learned_on_link_and_auto_links_next_time(db, seed, customer_master):
+    _, record = customer_master
+    # 1. First document: OCR misread (事→亊). A user links the fuzzy match, which
+    #    both corrects this document and teaches the record the misread spelling.
+    doc1, page1, _ = _make_document(db, seed, "株式会社サンプル商亊 御中")
+    match_document(db, doc1)
+    match1 = db.scalar(select(MasterMatch).where(MasterMatch.page_id == page1.id))
+    assert match1.kind == "fuzzy"
+    link_match(db, match1, seed["user_a"].id)
+
+    db.refresh(record)
+    assert any(alias["text"] == "株式会社サンプル商亊" for alias in record.aliases)
+
+    # 2. A new document with the same misread now auto-links — no user action.
+    doc2, page2, result2 = _make_document(db, seed, "株式会社サンプル商亊 御中")
+    match_document(db, doc2)
+    match2 = db.scalar(select(MasterMatch).where(MasterMatch.page_id == page2.id))
+    assert match2 is not None
+    assert match2.status == MatchStatus.linked.value  # auto-linked from the alias
+    assert match2.kind == "exact"
+    assert match2.linked_by is None  # applied by the system, not a person
+
+    db.refresh(result2)
+    assert "株式会社サンプル商事" in result2.markdown
+    assert "商亊" not in result2.markdown
+
+    # Auto-link re-applies a known spelling; it must NOT mint a fresh correction
+    # (the training signal was already recorded when the user first linked).
+    corrections = db.scalars(
+        select(Correction).where(Correction.page_id == page2.id)
+    ).all()
+    assert corrections == []
+
+
+def test_alias_not_learned_for_exact_link(db, seed, customer_master):
+    _, record = customer_master
+    # An exact match carries no new spelling — nothing should be learned.
+    document, page, _ = _make_document(db, seed, "株式会社サンプル商事 御中")
+    match_document(db, document)
+    match = db.scalar(select(MasterMatch).where(MasterMatch.page_id == page.id))
+    link_match(db, match, seed["user_a"].id)
+    db.refresh(record)
+    assert record.aliases == []
+
+
 def test_link_match_stale_text_conflicts(db, seed, customer_master):
     document, page, result = _make_document(db, seed, "株式会社サンプル商亊")
     match_document(db, document)

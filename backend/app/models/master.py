@@ -54,6 +54,14 @@ class MasterRecord(Base, UUIDMixin, TimestampMixin):
     )
     # {field_key: value}
     data: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    # Confirmed OCR spellings/misreads that resolve to this record, learned when
+    # a user links a fuzzy match. Each entry: {"field_key": str, "text": str}.
+    # Future OCR of the same text auto-links to the canonical value with no
+    # re-confirmation — this is how the system "learns" a company's product and
+    # client names from corrections.
+    aliases: Mapped[list] = mapped_column(
+        JSONB, default=list, server_default="[]", nullable=False
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("users.id", ondelete="SET NULL")
     )

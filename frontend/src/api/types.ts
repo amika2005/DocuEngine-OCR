@@ -151,10 +151,16 @@ export interface MasterType {
   created_at: string;
 }
 
+export interface MasterAlias {
+  field_key: string;
+  text: string;
+}
+
 export interface MasterRecord {
   id: string;
   master_type_id: string;
   data: Record<string, string>;
+  aliases: MasterAlias[];
   created_at: string;
 }
 

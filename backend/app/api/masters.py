@@ -68,9 +68,16 @@ class MasterRecordOut(BaseModel):
     id: uuid.UUID
     master_type_id: uuid.UUID
     data: dict
+    # Learned OCR spellings that auto-link to this record: [{field_key, text}].
+    aliases: list = []
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AliasIn(BaseModel):
+    field_key: str
+    text: str
 
 
 class MatchOut(BaseModel):
@@ -306,6 +313,31 @@ def delete_record(
     db.delete(record)
     db.commit()
     publish_event(admin.company_id, "masters.changed", {"action": "record_deleted"})
+
+
+@router.post("/records/{record_id}/aliases/remove", status_code=status.HTTP_204_NO_CONTENT)
+def remove_alias(
+    record_id: uuid.UUID,
+    body: AliasIn,
+    admin: User = Depends(require_company_admin),
+    db: Session = Depends(get_db),
+):
+    """Forget a learned OCR spelling — future documents stop auto-linking it.
+    (Corrections already applied to past documents are unaffected.)"""
+    from app.ocr.metrics import normalize_ja
+
+    record = _get_record(db, admin, record_id)
+    target = normalize_ja(body.text)
+    record.aliases = [
+        alias
+        for alias in (record.aliases or [])
+        if not (
+            alias.get("field_key") == body.field_key
+            and normalize_ja(str(alias.get("text", "") or "")) == target
+        )
+    ]
+    db.commit()
+    publish_event(admin.company_id, "masters.changed", {"action": "alias_removed"})
 
 
 def _infer_fields(header: list[str]) -> list[dict]:

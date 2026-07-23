@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { Fragment, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useLiveInvalidate } from '../../api/useEvents';
 import MasterImportWizard from '../../components/MasterImportWizard';
 import type {
+  MasterAlias,
   MasterField,
   MasterKind,
   MasterRecord,
@@ -291,6 +292,14 @@ function RecordsPanel({
     refresh();
   }
 
+  async function removeAlias(record: MasterRecord, alias: MasterAlias) {
+    await api(`/masters/records/${record.id}/aliases/remove`, {
+      method: 'POST',
+      body: JSON.stringify({ field_key: alias.field_key, text: alias.text }),
+    });
+    refresh();
+  }
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   return (
@@ -355,23 +364,53 @@ function RecordsPanel({
         </thead>
         <tbody>
           {data?.items.map((record) => (
-            <tr key={record.id} className="border-t border-slate-100 hover:bg-slate-50">
-              {type.fields.map((field) => (
-                <td key={field.key} className="px-3 py-2">
-                  {record.data[field.key] || '—'}
-                </td>
-              ))}
-              {canEdit && (
-                <td className="px-3 py-2 text-right text-xs">
-                  <button onClick={() => setEditing(record)} className="mr-2 text-blue-700 hover:underline">
-                    {t('masters.edit')}
-                  </button>
-                  <button onClick={() => deleteRecord(record)} className="text-red-600 hover:underline">
-                    {t('common.delete')}
-                  </button>
-                </td>
+            <Fragment key={record.id}>
+              <tr className="border-t border-slate-100 hover:bg-slate-50">
+                {type.fields.map((field) => (
+                  <td key={field.key} className="px-3 py-2">
+                    {record.data[field.key] || '—'}
+                  </td>
+                ))}
+                {canEdit && (
+                  <td className="px-3 py-2 text-right text-xs">
+                    <button onClick={() => setEditing(record)} className="mr-2 text-blue-700 hover:underline">
+                      {t('masters.edit')}
+                    </button>
+                    <button onClick={() => deleteRecord(record)} className="text-red-600 hover:underline">
+                      {t('common.delete')}
+                    </button>
+                  </td>
+                )}
+              </tr>
+              {record.aliases.length > 0 && (
+                <tr className="bg-amber-50/40">
+                  <td colSpan={type.fields.length + (canEdit ? 1 : 0)} className="px-3 pb-2 pt-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-slate-500" title={t('masters.aliasHint')}>
+                        {t('masters.learnedSpellings')}:
+                      </span>
+                      {record.aliases.map((alias, index) => (
+                        <span
+                          key={`${alias.field_key}-${alias.text}-${index}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 ring-1 ring-amber-200"
+                        >
+                          {alias.text}
+                          {canEdit && (
+                            <button
+                              onClick={() => removeAlias(record, alias)}
+                              title={t('common.delete')}
+                              className="text-amber-500 hover:text-amber-900"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
               )}
-            </tr>
+            </Fragment>
           ))}
           {data?.items.length === 0 && (
             <tr>
