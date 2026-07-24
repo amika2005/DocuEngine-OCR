@@ -156,12 +156,10 @@ export default function DocumentDetailPage() {
     if (!currentPage) return;
     setSaveBusy(true);
     try {
-      const correction = await api<{ id: string }>(`/pages/${currentPage.id}/corrections`, {
+      await api(`/pages/${currentPage.id}/corrections`, {
         method: 'POST',
-        body: JSON.stringify({ corrected_markdown: draft }),
+        body: JSON.stringify({ corrected_markdown: draft, apply: true }),
       });
-      // Submit right away so the correction enters the training flywheel.
-      await api(`/corrections/${correction.id}/submit`, { method: 'POST' });
       setEditingResult(false);
       invalidateAll();
     } finally {

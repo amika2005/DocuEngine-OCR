@@ -56,6 +56,7 @@ def create_correction(
     else:
         original = result.markdown
 
+    apply_now = body.apply and body.region_index is None and body.corrected_markdown != original
     correction = Correction(
         company_id=user.company_id,
         page_id=page.id,
@@ -64,14 +65,11 @@ def create_correction(
         original_markdown=original,
         corrected_markdown=body.corrected_markdown,
         region_index=body.region_index,
-        status=CorrectionStatus.draft.value,
+        status=CorrectionStatus.approved.value if apply_now else CorrectionStatus.draft.value,
     )
     db.add(correction)
 
-    # A whole-page correction is applied immediately: the visible result and
-    # the assembled document markdown change to what the user typed. The
-    # correction row keeps the original for the training flywheel.
-    if body.region_index is None and body.corrected_markdown != original:
+    if apply_now:
         from app.services.matching import rewrite_document_markdown
 
         result.markdown = body.corrected_markdown

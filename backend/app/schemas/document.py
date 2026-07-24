@@ -64,6 +64,7 @@ class BatchOut(BaseModel):
 class CorrectionCreate(BaseModel):
     corrected_markdown: str
     region_index: int | None = None
+    apply: bool = False
 
 
 class CorrectionUpdate(BaseModel):
