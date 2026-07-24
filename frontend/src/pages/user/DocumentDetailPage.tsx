@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, downloadFile } from '../../api/client';
+import { api, ApiError, downloadFile } from '../../api/client';
 import type {
   Document,
   DocumentList,
@@ -160,9 +160,11 @@ export default function DocumentDetailPage() {
         method: 'POST',
         body: JSON.stringify({ corrected_markdown: draft, apply: true }),
       });
-      setEditingResult(false);
       invalidateAll();
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 422)) throw err;
     } finally {
+      setEditingResult(false);
       setSaveBusy(false);
     }
   }

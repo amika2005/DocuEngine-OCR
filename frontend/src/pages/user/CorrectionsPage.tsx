@@ -111,7 +111,10 @@ export default function CorrectionsPage() {
 
   const { data: corrections } = useQuery({
     queryKey: ['corrections'],
-    queryFn: () => api<Correction[]>('/corrections'),
+    queryFn: async () => {
+      const all = await api<Correction[]>('/corrections');
+      return all.filter((c) => c.original_markdown !== c.corrected_markdown);
+    },
   });
   useLiveInvalidate('corrections.', [['corrections']]);
 

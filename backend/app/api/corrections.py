@@ -56,6 +56,9 @@ def create_correction(
     else:
         original = result.markdown
 
+    if body.apply and body.corrected_markdown == original:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "No changes to apply")
+
     apply_now = body.apply and body.region_index is None and body.corrected_markdown != original
     correction = Correction(
         company_id=user.company_id,
