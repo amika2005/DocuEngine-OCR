@@ -18,6 +18,7 @@ export interface Document {
   extracted_json: ExtractionResult | null;
   visibility: 'private' | 'shared';
   uploaded_by_user_id: string | null;
+  uploaded_by_name: string | null;
   error_message: string | null;
   created_at: string;
   completed_at: string | null;

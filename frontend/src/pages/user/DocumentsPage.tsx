@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
-import { Trash2, FileSpreadsheet, Lock } from 'lucide-react';
+import { Trash2, FileSpreadsheet, Lock, User as UserIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, downloadFile } from '../../api/client';
 import type { Document, DocumentList } from '../../api/types';
+import { useAuth } from '../../auth/AuthContext';
 import { useEvents } from '../../api/useEvents';
 import StatusBadge from '../../components/StatusBadge';
 import DocumentThumbnail from '../../components/DocumentThumbnail';
@@ -24,6 +25,8 @@ const CATEGORIES = [
 
 export default function DocumentsPage() {
   const { t } = useTranslation();
+  const { me } = useAuth();
+  const isAdmin = me?.role === 'company_admin' || me?.role === 'super_admin';
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -246,9 +249,17 @@ export default function DocumentsPage() {
           onDelete={refresh}
           selected={selected}
           onToggleSelect={toggleSelect}
+          isAdmin={isAdmin}
         />
       ) : (
-        <GridView documents={data?.items ?? []} empty={data?.items.length === 0} onDelete={refresh} />
+        <GridView
+          documents={data?.items ?? []}
+          empty={data?.items.length === 0}
+          onDelete={refresh}
+          selected={selected}
+          onToggleSelect={toggleSelect}
+          isAdmin={isAdmin}
+        />
       )}
 
       {totalPages > 1 && (
@@ -274,12 +285,14 @@ function ListView({
   onDelete,
   selected,
   onToggleSelect,
+  isAdmin,
 }: {
   documents: Document[];
   empty?: boolean;
   onDelete: () => void;
   selected: Set<string>;
   onToggleSelect: (id: string) => void;
+  isAdmin: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -302,6 +315,7 @@ function ListView({
             <th className="px-4 py-2">{t('documents.category')}</th>
             <th className="px-4 py-2">{t('documents.status')}</th>
             <th className="px-4 py-2">{t('documents.pages')}</th>
+            {isAdmin && <th className="px-4 py-2">{t('documents.claimedBy')}</th>}
             <th className="px-4 py-2">{t('documents.date')}</th>
             <th className="px-4 py-2 text-right">Actions</th>
           </tr>
@@ -338,6 +352,18 @@ function ListView({
                 <StatusBadge status={doc.status} />
               </td>
               <td className="px-4 py-2">{doc.page_count || '—'}</td>
+              {isAdmin && (
+                <td className="px-4 py-2">
+                  {doc.uploaded_by_name ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-600">
+                      <UserIcon size={12} className="text-slate-400" />
+                      {doc.uploaded_by_name}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-300">—</span>
+                  )}
+                </td>
+              )}
               <td className="px-4 py-2">{new Date(doc.created_at).toLocaleString()}</td>
               <td className="px-4 py-2 text-right">
                 <button
@@ -352,7 +378,7 @@ function ListView({
           ))}
           {empty && (
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+              <td colSpan={isAdmin ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
                 {t('documents.empty')}
               </td>
             </tr>
@@ -363,11 +389,25 @@ function ListView({
   );
 }
 
-function GridView({ documents, empty, onDelete }: { documents: Document[]; empty?: boolean; onDelete: () => void }) {
+function GridView({
+  documents,
+  empty,
+  onDelete,
+  selected,
+  onToggleSelect,
+  isAdmin,
+}: {
+  documents: Document[];
+  empty?: boolean;
+  onDelete: () => void;
+  selected: Set<string>;
+  onToggleSelect: (id: string) => void;
+  isAdmin: boolean;
+}) {
   const { t } = useTranslation();
 
   async function handleDelete(event: React.MouseEvent, id: string) {
-    event.preventDefault(); // Prevent navigating to document detail
+    event.preventDefault();
     if (!confirm(t('common.confirmDelete') || 'Are you sure you want to delete this document?')) return;
     try {
       await api(`/documents/${id}`, { method: 'DELETE' });
@@ -387,36 +427,56 @@ function GridView({ documents, empty, onDelete }: { documents: Document[]; empty
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {documents.map((doc) => (
-        <Link
+        <div
           key={doc.id}
-          to={`/documents/${doc.id}`}
-          className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition-shadow hover:shadow-md"
+          className={`group relative overflow-hidden rounded-lg border bg-white transition-shadow hover:shadow-md ${
+            selected.has(doc.id) ? 'border-sky-400 ring-2 ring-sky-200' : 'border-slate-200'
+          }`}
         >
-          <DocumentThumbnail document={doc} />
-          <div className="space-y-1 p-3">
-            <p
-              className="truncate text-sm font-medium text-slate-800 group-hover:text-blue-700"
-              title={doc.original_filename}
-            >
-              {doc.original_filename}
-            </p>
-            <div className="flex items-center justify-between">
-              <StatusBadge status={doc.status} />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">
-                  {new Date(doc.created_at).toLocaleDateString()}
-                </span>
-                <button
-                  onClick={(e) => handleDelete(e, doc.id)}
-                  className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
-                  title="Delete"
-                >
-                  <Trash2 size={14} />
-                </button>
+          <div className="absolute left-2 top-2 z-10">
+            <input
+              type="checkbox"
+              checked={selected.has(doc.id)}
+              onChange={() => onToggleSelect(doc.id)}
+              className="h-4 w-4 cursor-pointer accent-sky-600"
+            />
+          </div>
+          <Link to={`/documents/${doc.id}`}>
+            <DocumentThumbnail document={doc} />
+            <div className="space-y-1 p-3">
+              <p
+                className="truncate text-sm font-medium text-slate-800 group-hover:text-blue-700"
+                title={doc.original_filename}
+              >
+                {doc.visibility === 'private' && (
+                  <Lock size={12} className="mr-1 inline shrink-0 text-slate-400" />
+                )}
+                {doc.original_filename}
+              </p>
+              {isAdmin && doc.uploaded_by_name && (
+                <p className="flex items-center gap-1 truncate text-xs text-slate-500">
+                  <UserIcon size={11} className="shrink-0 text-slate-400" />
+                  {doc.uploaded_by_name}
+                </p>
+              )}
+              <div className="flex items-center justify-between">
+                <StatusBadge status={doc.status} />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">
+                    {new Date(doc.created_at).toLocaleDateString()}
+                  </span>
+                  <button
+                    onClick={(e) => handleDelete(e, doc.id)}
+                    className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </Link>
+          </Link>
+        </div>
       ))}
     </div>
   );

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class DocumentOut(BaseModel):
@@ -16,11 +16,20 @@ class DocumentOut(BaseModel):
     extracted_json: dict | None = None
     visibility: str = "shared"
     uploaded_by_user_id: uuid.UUID | None = None
+    uploaded_by_name: str | None = None
     error_message: str | None
     created_at: datetime
     completed_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _fill_uploader_name(cls, data, handler):
+        obj = handler(data)
+        if obj.uploaded_by_name is None and hasattr(data, "uploaded_by_user") and data.uploaded_by_user is not None:
+            obj.uploaded_by_name = data.uploaded_by_user.display_name
+        return obj
 
 
 class DocumentListOut(BaseModel):

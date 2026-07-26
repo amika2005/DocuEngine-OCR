@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDMixin
 from app.models.company import JSONB
@@ -66,6 +66,7 @@ class Document(Base, UUIDMixin, TimestampMixin):
     uploaded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("users.id", ondelete="SET NULL")
     )
+    uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_user_id], lazy="joined")
     uploaded_by_device_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid, sa.ForeignKey("devices.id", ondelete="SET NULL")
     )
