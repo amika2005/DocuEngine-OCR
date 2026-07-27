@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, downloadFile } from '../../api/client';
-import type { Document, DocumentList } from '../../api/types';
+import type { Document, DocumentList, User } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { useEvents } from '../../api/useEvents';
 import StatusBadge from '../../components/StatusBadge';
@@ -34,9 +34,16 @@ export default function DocumentsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [mineOnly, setMineOnly] = useState(false);
+  const [filterUserId, setFilterUserId] = useState('');
   const [view, setView] = useState<ViewMode>(
     (localStorage.getItem('docuengine-view') as ViewMode) ?? 'list',
   );
+
+  const { data: users } = useQuery({
+    queryKey: ['company-users'],
+    queryFn: () => api<User[]>('/users'),
+    enabled: isAdmin,
+  });
 
   const params = new URLSearchParams({ page: String(page), page_size: '24' });
   if (search) params.set('q', search);
@@ -44,6 +51,7 @@ export default function DocumentsPage() {
   if (dateFrom) params.set('created_from', dateFrom);
   if (dateTo) params.set('created_to', dateTo);
   if (mineOnly) params.set('mine', 'true');
+  if (filterUserId) params.set('uploaded_by', filterUserId);
   const query = params.toString();
 
   const { data } = useQuery({
@@ -181,19 +189,39 @@ export default function DocumentsPage() {
             checked={mineOnly}
             onChange={(event) => {
               setMineOnly(event.target.checked);
+              if (event.target.checked) setFilterUserId('');
               setPage(1);
             }}
             className="accent-sky-600"
           />
           {t('documents.mineOnly')}
         </label>
-        {(docType || dateFrom || dateTo || mineOnly) && (
+        {isAdmin && users && users.length > 0 && (
+          <select
+            value={filterUserId}
+            onChange={(event) => {
+              setFilterUserId(event.target.value);
+              if (event.target.value) setMineOnly(false);
+              setPage(1);
+            }}
+            className="rounded border border-slate-300 px-2 py-1.5"
+          >
+            <option value="">{t('documents.allUsers')}</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name || u.email}
+              </option>
+            ))}
+          </select>
+        )}
+        {(docType || dateFrom || dateTo || mineOnly || filterUserId) && (
           <button
             onClick={() => {
               setDocType('');
               setDateFrom('');
               setDateTo('');
               setMineOnly(false);
+              setFilterUserId('');
               setPage(1);
             }}
             className="rounded border border-slate-300 px-2 py-1.5 text-slate-600 hover:bg-slate-50"

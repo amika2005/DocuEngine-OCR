@@ -120,6 +120,7 @@ def list_documents(
     created_from: date | None = None,
     created_to: date | None = None,
     mine: bool = False,
+    uploaded_by: uuid.UUID | None = None,
     page: int = 1,
     page_size: int = 25,
     user: User = Depends(require_company_member),
@@ -130,6 +131,8 @@ def list_documents(
     query = _visible_documents(user)
     if mine:
         query = query.where(Document.uploaded_by_user_id == user.id)
+    if uploaded_by and _is_admin(user):
+        query = query.where(Document.uploaded_by_user_id == uploaded_by)
     if status_filter:
         query = query.where(Document.status == status_filter)
     if doc_type:
