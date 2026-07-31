@@ -88,11 +88,22 @@ export default function DocumentDetailPage() {
   });
 
   const currentPage = pages?.[selectedPage];
-  const { data: pageResult } = useQuery({
-    queryKey: ['page-result', currentPage?.id],
-    queryFn: () => api<OcrResult>(`/pages/${currentPage!.id}/result`),
-    enabled: !!currentPage && currentPage.status === 'completed',
+  const { data: allResults } = useQuery({
+    queryKey: ['all-page-results', id],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        pages!
+          .filter((p) => p.status === 'completed')
+          .map(async (p) => {
+            const result = await api<OcrResult>(`/pages/${p.id}/result`);
+            return [p.id, result] as const;
+          }),
+      );
+      return Object.fromEntries(entries) as Record<string, OcrResult>;
+    },
+    enabled: !!pages && pages.some((p) => p.status === 'completed'),
   });
+  const pageResult = currentPage ? allResults?.[currentPage.id] : undefined;
   const regions = pageResult?.layout_json.regions ?? [];
 
   // Prev/next navigation across the document list (newest first).
@@ -208,10 +219,17 @@ export default function DocumentDetailPage() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToRegion, resultTab]);
-  const { data: matches } = useQuery({
-    queryKey: ['page-matches', currentPage?.id],
-    queryFn: () => api<MasterMatch[]>(`/pages/${currentPage!.id}/matches`),
-    enabled: !!currentPage,
+  const { data: allMatches } = useQuery({
+    queryKey: ['all-page-matches', id],
+    queryFn: async () => {
+      const results = await Promise.all(
+        pages!
+          .filter((p) => p.status === 'completed')
+          .map((p) => api<MasterMatch[]>(`/pages/${p.id}/matches`)),
+      );
+      return results.flat();
+    },
+    enabled: !!pages && pages.some((p) => p.status === 'completed'),
   });
   // Per-field master link state for the Fields tab (whole-document, all pages).
   const { data: fieldMatches } = useQuery({
@@ -224,8 +242,8 @@ export default function DocumentDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['document', id] });
     queryClient.invalidateQueries({ queryKey: ['document-pages', id] });
     queryClient.invalidateQueries({ queryKey: ['document-markdown', id] });
-    queryClient.invalidateQueries({ queryKey: ['page-result'] });
-    queryClient.invalidateQueries({ queryKey: ['page-matches'] });
+    queryClient.invalidateQueries({ queryKey: ['all-page-results', id] });
+    queryClient.invalidateQueries({ queryKey: ['all-page-matches', id] });
     queryClient.invalidateQueries({ queryKey: ['document-field-matches', id] });
   }, [id, queryClient]);
 
@@ -282,7 +300,7 @@ export default function DocumentDetailPage() {
   if (!doc) return <p className="text-slate-500">{t('common.loading')}</p>;
 
   const processing = doc.status === 'queued' || doc.status === 'processing';
-  const suggestedCount = matches?.filter((match) => match.status === 'suggested').length ?? 0;
+  const suggestedCount = allMatches?.filter((match) => match.status === 'suggested').length ?? 0;
   const filenameStem = doc.original_filename.replace(/\.[^.]+$/, '');
 
   return (
@@ -397,14 +415,6 @@ export default function DocumentDetailPage() {
         </p>
       )}
 
-      {/* Per-page OCR failure reason (why a page failed, not just "failed") */}
-      {currentPage?.status === 'failed' && currentPage.error_message && (
-        <div className="mb-3 shrink-0 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <p className="font-medium">{t('detail.pageFailed', { page: currentPage.page_number })}</p>
-          <code className="mt-1 block break-all text-xs">{currentPage.error_message}</code>
-        </div>
-      )}
-
       {/* Two-column split — divider drags to resize, position persists */}
       <div ref={splitContainer} className="flex min-h-0 flex-1">
         <section
@@ -413,68 +423,75 @@ export default function DocumentDetailPage() {
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
             <h2 className="font-medium text-slate-700">{t('detail.originalImage')}</h2>
-            <div className="flex items-center gap-2">
-              {pageResult && (
-                <span
-                  className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 lg:inline"
-                  title={t('detail.confidence')}
-                >
-                  {pageResult.engine}
-                  {pageResult.avg_confidence != null &&
-                    ` · ${Math.round(pageResult.avg_confidence * 100)}%`}
-                </span>
-              )}
-              {regions.length > 0 && (
-                <label className="flex cursor-pointer select-none items-center gap-1.5 text-sm text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={showBoxes}
-                    onChange={(event) => setShowBoxes(event.target.checked)}
-                    className="accent-sky-600"
-                  />
-                  {t('detail.boxes')}
-                </label>
-              )}
-              {pages && pages.length > 1 && (
-                <select
-                  value={selectedPage}
-                  onChange={(event) => {
-                    setSelectedPage(Number(event.target.value));
-                    setHoveredRegion(null);
-                    setScrollToRegion(null);
-                    setEditingResult(false);
-                  }}
-                  className="rounded border border-slate-300 px-2 py-1 text-sm"
-                >
-                  {pages.map((page, index) => (
-                    <option key={page.id} value={index}>
-                      p.{page.page_number}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-          <div className="flex-1 overflow-auto p-3">
-            {currentPage && regions.length > 0 ? (
-              <RegionOverlayViewer
-                path={`/pages/${currentPage.id}/image`}
-                pageWidth={currentPage.width_px}
-                pageHeight={currentPage.height_px}
-                regions={regions}
-                hovered={hoveredRegion}
-                onHover={setHoveredRegion}
-                onSelect={(index) => {
-                  // Jump to the region's text in the Markdown result; fall
-                  // back to the line list when no markdown exists yet.
-                  setResultTab(markdown != null ? 'markdown' : 'lines');
-                  setScrollToRegion(index);
-                }}
-                showBoxes={showBoxes}
+            <label className="flex cursor-pointer select-none items-center gap-1.5 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={showBoxes}
+                onChange={(event) => setShowBoxes(event.target.checked)}
+                className="accent-sky-600"
               />
-            ) : currentPage ? (
-              <PageViewer path={`/pages/${currentPage.id}/image`} />
-            ) : (
+              {t('detail.boxes')}
+            </label>
+          </div>
+          <div className="flex-1 overflow-auto p-3 space-y-3">
+            {pages?.map((page, index) => {
+              const result = allResults?.[page.id];
+              const pageRegions = result?.layout_json.regions ?? [];
+              return (
+                <div
+                  key={page.id}
+                  onClick={() => {
+                    setSelectedPage(index);
+                    setHoveredRegion(null);
+                  }}
+                  className={`rounded-lg border-2 transition-colors ${
+                    selectedPage === index
+                      ? 'border-sky-400'
+                      : 'border-transparent hover:border-slate-200'
+                  }`}
+                >
+                  {pages.length > 1 && (
+                    <div className="flex items-center justify-between rounded-t bg-slate-50 px-3 py-1 text-xs text-slate-500">
+                      <span className="font-medium">p.{page.page_number}</span>
+                      {result && (
+                        <span>
+                          {result.engine}
+                          {result.avg_confidence != null &&
+                            ` · ${Math.round(result.avg_confidence * 100)}%`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {page.status === 'failed' && page.error_message && (
+                    <div className="bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {t('detail.pageFailed', { page: page.page_number })}
+                    </div>
+                  )}
+                  {pageRegions.length > 0 ? (
+                    <RegionOverlayViewer
+                      path={`/pages/${page.id}/image`}
+                      pageWidth={page.width_px}
+                      pageHeight={page.height_px}
+                      regions={pageRegions}
+                      hovered={selectedPage === index ? hoveredRegion : null}
+                      onHover={(r) => {
+                        setSelectedPage(index);
+                        setHoveredRegion(r);
+                      }}
+                      onSelect={(r) => {
+                        setSelectedPage(index);
+                        setResultTab(markdown != null ? 'markdown' : 'lines');
+                        setScrollToRegion(r);
+                      }}
+                      showBoxes={showBoxes}
+                    />
+                  ) : page.status !== 'failed' ? (
+                    <PageViewer path={`/pages/${page.id}/image`} />
+                  ) : null}
+                </div>
+              );
+            })}
+            {(!pages || pages.length === 0) && (
               <p className="py-12 text-center text-slate-400">—</p>
             )}
           </div>
@@ -589,7 +606,7 @@ export default function DocumentDetailPage() {
                 <div ref={markdownRef} className="markdown-body text-sm">
                   <MatchableMarkdown
                     markdown={markdown}
-                    matches={matches ?? []}
+                    matches={allMatches ?? []}
                     onMatchClick={(match, anchor) => setPopup({ match, anchor })}
                   />
                 </div>
