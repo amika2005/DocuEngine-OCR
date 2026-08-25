@@ -42,6 +42,9 @@ def rasterize(
     dpi = dpi or settings.ocr_dpi
     max_long_edge = max_long_edge or settings.ocr_max_long_edge
     output_dir.mkdir(parents=True, exist_ok=True)
+    from app.services.storage import ensure_writable
+
+    ensure_writable(output_dir)
     is_photo = settings.ocr_photo_enhance and input_path.suffix.lower() in _PHOTO_SUFFIXES
 
     pages: list[RasterizedPage] = []

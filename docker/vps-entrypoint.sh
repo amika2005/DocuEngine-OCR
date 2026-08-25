@@ -1,6 +1,7 @@
 #!/bin/sh
 # VPS / IP:port API entry: wait for this stack's Postgres, migrate, seed, serve.
 set -eu
+umask 000
 
 echo "Waiting for DocuEngine database..."
 python - <<'PY'

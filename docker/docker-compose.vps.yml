@@ -65,7 +65,7 @@ services:
 
   worker-cpu:
     image: docuengine/backend:${DOCUENGINE_VERSION:-vps}
-    command: celery -A app.tasks.celery_app worker -Q cpu -c 2 --loglevel=info -n worker-cpu@%h
+    command: ["/bin/sh", "-c", "umask 000; exec celery -A app.tasks.celery_app worker -Q cpu -c 2 --loglevel=info -n worker-cpu@%h"]
     environment: *backend-env
     user: root
     volumes:
@@ -79,7 +79,7 @@ services:
   worker-ocr:
     image: docuengine/backend:${DOCUENGINE_VERSION:-vps}
     user: root
-    command: celery -A app.tasks.celery_app worker -Q ocr_gpu -c 1 --prefetch-multiplier=1 --loglevel=info -n worker-ocr@%h
+    command: ["/bin/sh", "-c", "umask 000; exec celery -A app.tasks.celery_app worker -Q ocr_gpu -c 1 --prefetch-multiplier=1 --loglevel=info -n worker-ocr@%h"]
     environment: *backend-env
     volumes:
       - docuengine-data:/data

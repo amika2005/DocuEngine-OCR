@@ -28,7 +28,29 @@ def document_markdown_path(company_id: uuid.UUID, document_id: uuid.UUID) -> Pat
 
 def save_bytes(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_writable(path.parent)
     path.write_bytes(data)
+
+
+def ensure_writable(path: Path) -> None:
+    """Make dirs under DATA_DIR writable by API and Celery even if they run as
+    different uids (VPS compose runs the API as root and workers as 10001)."""
+    settings = get_settings()
+    root = settings.data_dir.resolve()
+    current = path.resolve()
+    try:
+        current.relative_to(root)
+    except ValueError:
+        return
+    for candidate in (current, *current.parents):
+        try:
+            if candidate == root.parent or candidate == candidate.anchor:
+                break
+            candidate.chmod(0o777)
+        except OSError:
+            pass
+        if candidate == root:
+            break
 
 
 def sha256_bytes(data: bytes) -> str:
