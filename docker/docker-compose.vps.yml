@@ -22,6 +22,7 @@ x-backend-env: &backend-env
   DATA_DIR: /data
   MODELS_DIR: /data/models
   OCR_ENGINE: ${OCR_ENGINE:-mock}
+  OCR_PHOTO_ENHANCE: "false"
   SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?set in docker/.env.vps}
   SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?set in docker/.env.vps}
   SUPERADMIN_NAME: ${SUPERADMIN_NAME:-Sonasu Admin}

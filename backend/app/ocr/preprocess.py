@@ -77,9 +77,12 @@ def rasterize(
 def enhance_photo_in_place(image_path: Path) -> None:
     """Apply camera-photo enhancement, overwriting the file. Best-effort: any
     failure leaves the rasterized image untouched."""
-    import cv2
+    try:
+        import cv2
 
-    from app.ocr.photo import enhance_photo
+        from app.ocr.photo import enhance_photo
+    except ImportError:
+        return
 
     try:
         img = cv2.imread(str(image_path))
@@ -97,8 +100,14 @@ def deskew_in_place(image_path: Path) -> tuple[int, int]:
     rules, text baselines). Returns the final (width, height); on any failure
     the original file is kept untouched.
     """
-    import cv2
-    import numpy as np
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        from PIL import Image
+
+        with Image.open(image_path) as pil:
+            return pil.size
 
     img = cv2.imread(str(image_path))
     if img is None:
