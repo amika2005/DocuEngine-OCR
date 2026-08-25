@@ -32,6 +32,9 @@ PY
 echo "Applying DocuEngine migrations (docuengine DB only)..."
 alembic upgrade head
 
+mkdir -p /data
+chmod -R a+rwX /data || true
+
 if [ "${RUN_SEED:-1}" = "1" ]; then
   echo "Seeding super admin..."
   python -m app.db.seed
