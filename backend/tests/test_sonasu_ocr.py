@@ -74,6 +74,38 @@ def test_office_payload_assembles_item_grid_into_markdown_table():
     assert "マスター管理" not in titles
 
 
+def test_first_item_is_not_merged_into_the_header_row():
+    """品目 header sits just above マスター管理; wrap-merge used to glue them."""
+    result = page_result_from_office_payload(
+        {
+            "text": "header-bleed",
+            "lines": [
+                _line("品目", 40, 400, 110, 428),
+                _line("単価", 280, 400, 340, 428),
+                _line("数量", 360, 400, 420, 428),
+                _line("単位", 440, 400, 490, 428),
+                _line("価格", 520, 400, 590, 428),
+                _line("マスター管理", 40, 432, 180, 452),
+                _line("45,000", 280, 470, 340, 498),
+                _line("38", 360, 470, 400, 498),
+                _line("日", 440, 470, 470, 498),
+                _line("1,710,000", 520, 470, 610, 498),
+            ],
+        }
+    )
+    tables = [r for r in result.regions if r.kind == "table"]
+    assert tables
+    md = tables[0].markdown
+    header = md.splitlines()[0]
+    assert "品目" in header
+    assert "マスター管理" not in header
+    assert "マスター管理" in md
+    assert "45,000" in md
+    data_rows = [line for line in md.splitlines()[2:] if "マスター管理" in line]
+    assert data_rows
+    assert "45,000" in data_rows[0]
+
+
 def test_wrapped_item_descriptions_stay_in_one_markdown_table():
     """Real 納品書 rows: title+amounts, then a 1-column description under 品目."""
     result = page_result_from_office_payload(

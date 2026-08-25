@@ -29,6 +29,7 @@ _TABLE_HEADERS = (
     "価格",
     "税額",
     "小計",
+    "項目",
 )
 
 _KV_LABELS = (
@@ -144,6 +145,8 @@ def table_to_markdown(lines: list[Line], bbox: BBox) -> str:
         grid.append(cells)
     used = [i for i in range(len(anchors)) if any(row[i] for row in grid)]
     grid = [[row[i] for i in used] for row in grid]
+    grid = _split_header_item_bleed(grid)
+    grid = _stitch_title_and_amount_rows(grid)
     return cells_to_markdown(grid)
 
 
@@ -324,6 +327,92 @@ def _header_hint_count(text: str) -> int:
     return sum(1 for header in _TABLE_HEADERS if header in text)
 
 
+def _is_header_token(text: str) -> bool:
+    compact = text.strip().replace(" ", "").replace("\n", "")
+    if compact in _TABLE_HEADERS or compact in {"項目", "数量単位"}:
+        return True
+    if not compact or any(ch.isdigit() for ch in compact):
+        return False
+    return compact in _TABLE_HEADERS or any(h == compact for h in _TABLE_HEADERS)
+
+
+def _is_header_row(row: list[Line]) -> bool:
+    joined = "".join(line.text for line in row)
+    if _header_hint_count(joined) < 2:
+        return False
+    return not any(_looks_amount(line.text) for line in row)
+
+
+def _peel_header_cell(cell: str) -> tuple[str, str]:
+    text = cell.strip()
+    if not text:
+        return "", ""
+    if "\n" in text:
+        first, rest = text.split("\n", 1)
+        first, rest = first.strip(), rest.strip()
+        if _is_header_token(first) and rest and not _is_header_token(rest):
+            return first, rest
+        if _is_header_token(first) and _is_header_token(rest):
+            return text, ""
+        return text, ""
+    parts = text.split(None, 1)
+    if len(parts) == 2 and _is_header_token(parts[0]) and not _is_header_token(parts[1]):
+        return parts[0], parts[1]
+    return text, ""
+
+
+def _split_header_item_bleed(grid: list[list[str]]) -> list[list[str]]:
+    """If 品目\\nマスター管理 landed in the header row, peel the item into row 2."""
+    if not grid:
+        return grid
+    header: list[str] = []
+    leftover: list[str] = []
+    bled = False
+    for cell in grid[0]:
+        top, extra = _peel_header_cell(cell)
+        header.append(top)
+        leftover.append(extra)
+        if extra:
+            bled = True
+    if not bled:
+        return grid
+    return [header, leftover, *grid[1:]]
+
+
+def _only_first_col(row: list[str]) -> bool:
+    if not row or not row[0].strip():
+        return False
+    return not any(cell.strip() for cell in row[1:])
+
+
+def _first_empty_rest_filled(row: list[str]) -> bool:
+    if not row or row[0].strip():
+        return False
+    return any(cell.strip() for cell in row[1:])
+
+
+def _stitch_title_and_amount_rows(grid: list[list[str]]) -> list[list[str]]:
+    """Join a title-only row with the next amounts-only row (same item)."""
+    out: list[list[str]] = []
+    index = 0
+    while index < len(grid):
+        row = grid[index]
+        nxt = grid[index + 1] if index + 1 < len(grid) else None
+        if (
+            nxt is not None
+            and len(row) == len(nxt)
+            and _only_first_col(row)
+            and _first_empty_rest_filled(nxt)
+        ):
+            combined = [row[0], *nxt[1:]]
+            out.append(combined)
+            index += 2
+            continue
+        out.append(row)
+        index += 1
+    return out
+
+
 def _is_kv_pair(row: list[Line]) -> bool:
     ordered = sorted(row, key=lambda line: line.bbox[0])
     left, right = ordered[0], ordered[-1]
@@ -373,7 +462,11 @@ def _merge_wrap_rows(rows: list[list[Line]]) -> list[list[Line]]:
         return []
     merged: list[list[Line]] = [list(rows[0])]
     for row in rows[1:]:
-        if _row_cell_count(row) == 1 and merged[-1]:
+        if (
+            _row_cell_count(row) == 1
+            and merged[-1]
+            and not _is_header_row(merged[-1])
+        ):
             line = row[0]
             prev = merged[-1]
             second_x = (
