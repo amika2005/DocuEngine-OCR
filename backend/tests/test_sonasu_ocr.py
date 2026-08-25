@@ -74,6 +74,69 @@ def test_office_payload_assembles_item_grid_into_markdown_table():
     assert "マスター管理" not in titles
 
 
+def test_wrapped_item_descriptions_stay_in_one_markdown_table():
+    """Real 納品書 rows: title+amounts, then a 1-column description under 品目."""
+    result = page_result_from_office_payload(
+        {
+            "text": "wrapped",
+            "lines": [
+                _line("品目", 40, 400, 110, 428),
+                _line("単価", 280, 400, 340, 428),
+                _line("数量", 360, 400, 420, 428),
+                _line("単位", 440, 400, 490, 428),
+                _line("価格", 520, 400, 590, 428),
+                _line("マスター管理", 40, 450, 180, 478),
+                _line("45,000", 280, 450, 340, 478),
+                _line("38", 360, 450, 400, 478),
+                _line("日", 440, 450, 470, 478),
+                _line("1,710,000", 520, 450, 610, 478),
+                _line("サーバー監視および月次レポート作成", 40, 490, 260, 518),
+                _line("クラウド運用", 40, 560, 160, 588),
+                _line("80,000", 280, 560, 340, 588),
+                _line("12", 360, 560, 400, 588),
+                _line("月", 440, 560, 470, 588),
+                _line("960,000", 520, 560, 600, 588),
+                _line("小計", 400, 640, 460, 668),
+                _line("25,020,000", 520, 640, 620, 668),
+                _line("合計", 400, 680, 460, 708),
+                _line("27,522,000", 520, 680, 620, 708),
+            ],
+        }
+    )
+    tables = [r for r in result.regions if r.kind == "table"]
+    assert tables
+    md = "\n".join(t.markdown for t in tables)
+    assert "| 品目 |" in md or "品目" in md
+    assert "マスター管理" in md
+    assert "サーバー監視" in md
+    assert "クラウド運用" in md
+    assert "小計" in md
+    assert "27,522,000" in md
+    text_blob = " ".join(r.markdown for r in result.regions if r.kind == "text")
+    assert "マスター管理" not in text_blob
+    assert "1,710,000" not in text_blob
+
+
+def test_total_amount_pair_becomes_a_two_column_table():
+    result = page_result_from_office_payload(
+        {
+            "text": "合計金額 27,522,000円",
+            "lines": [
+                _line("合計金額", 400, 40, 500, 70),
+                _line("27,522,000円", 520, 40, 700, 70),
+                _line("納品書", 40, 40, 140, 70),
+            ],
+        }
+    )
+    tables = [r for r in result.regions if r.kind == "table"]
+    assert len(tables) == 1
+    assert "合計金額" in tables[0].markdown
+    assert "27,522,000" in tables[0].markdown
+    assert "|" in tables[0].markdown
+    texts = [r.markdown for r in result.regions if r.kind == "text"]
+    assert "納品書" in texts
+
+
 def test_side_by_side_addresses_are_not_a_table():
     result = page_result_from_office_payload(
         {

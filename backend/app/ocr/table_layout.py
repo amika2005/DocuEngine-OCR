@@ -1,8 +1,10 @@
 """Rebuild GFM tables from OCR line boxes when the engine has no table output.
 
-Office RapidOCR (and img2table-less installs) return text + positions only.
-Rows are clustered by y, columns by x gaps, then rendered with cells_to_markdown.
-Two-column letterheads are ignored; item grids (品目 / 単価 / 数量 / 価格) are not.
+Office RapidOCR returns text + positions only. This module:
+
+- clusters lines into visual rows (vertical overlap, not just y-center)
+- treats 3+ column grids as tables, keeping wrapped 品目 descriptions in-cell
+- also turns label/amount pairs (合計金額, 小計, 合計, …) into 2-column tables
 """
 
 from __future__ import annotations
@@ -27,6 +29,22 @@ _TABLE_HEADERS = (
     "価格",
     "税額",
     "小計",
+)
+
+_KV_LABELS = (
+    "合計金額",
+    "消費税額合計",
+    "消費税額",
+    "消費税",
+    "税率別内訳",
+    "税抜金額",
+    "税込金額",
+    "対象額",
+    "小計",
+    "合計",
+    "備考",
+    "件名",
+    "税額",
 )
 
 
@@ -59,24 +77,43 @@ def center_inside(line: Line, bbox: BBox, pad: float = 4.0) -> bool:
 
 
 def cluster_rows(lines: list[Line]) -> list[list[Line]]:
+    """Group lines that share a horizontal band (boxes overlap in y)."""
     if not lines:
         return []
-    tolerance = median(line.height for line in lines) * 0.6
+    ordered = sorted(lines, key=lambda item: (item.cy, item.bbox[0]))
     rows: list[list[Line]] = []
-    for line in sorted(lines, key=lambda item: item.cy):
-        if rows and abs(line.cy - rows[-1][0].cy) <= tolerance:
-            rows[-1].append(line)
-        else:
+    for line in ordered:
+        best_i: int | None = None
+        best_overlap = 0.0
+        for index, row in enumerate(rows):
+            y0 = min(item.bbox[1] for item in row)
+            y1 = max(item.bbox[3] for item in row)
+            overlap = min(line.bbox[3], y1) - max(line.bbox[1], y0)
+            if overlap <= 0:
+                continue
+            threshold = min(line.height, max(y1 - y0, 1.0)) * 0.25
+            if overlap >= threshold and overlap > best_overlap:
+                best_overlap = overlap
+                best_i = index
+        if best_i is None:
             rows.append([line])
+        else:
+            rows[best_i].append(line)
+    rows.sort(key=lambda row: min(item.cy for item in row))
     for row in rows:
         row.sort(key=lambda item: item.bbox[0])
     return rows
 
 
 def column_anchors(rows: list[list[Line]], table_width: float) -> list[float]:
-    centers = sorted(line.cx for row in rows for line in row)
-    if not centers:
+    """Column centers. Prefer the richest row (usually the header) so wrapped
+    品目 text does not invent extra columns."""
+    if not rows:
         return []
+    rich = max(rows, key=_row_cell_count)
+    if _row_cell_count(rich) >= 2:
+        return [line.cx for line in sorted(rich, key=lambda item: item.cx)]
+    centers = sorted(line.cx for row in rows for line in row)
     min_gap = max(table_width * 0.05, 30.0)
     clusters: list[list[float]] = [[centers[0]]]
     for center in centers[1:]:
@@ -88,10 +125,10 @@ def column_anchors(rows: list[list[Line]], table_width: float) -> list[float]:
 
 
 def table_to_markdown(lines: list[Line], bbox: BBox) -> str:
-    rows = cluster_rows(lines)
+    rows = _merge_wrap_rows(cluster_rows(lines))
     if not rows:
         return ""
-    anchors = column_anchors(rows, table_width=bbox[2] - bbox[0])
+    anchors = column_anchors(rows, table_width=max(bbox[2] - bbox[0], 1.0))
     if not anchors:
         return ""
     grid: list[list[str]] = []
@@ -99,7 +136,11 @@ def table_to_markdown(lines: list[Line], bbox: BBox) -> str:
         cells = [""] * len(anchors)
         for line in row:
             col = min(range(len(anchors)), key=lambda i: abs(anchors[i] - line.cx))
-            cells[col] = f"{cells[col]} {line.text}".strip() if cells[col] else line.text
+            if cells[col]:
+                sep = "\n" if abs(line.cy - row[0].cy) > row[0].height * 0.6 else " "
+                cells[col] = f"{cells[col]}{sep}{line.text}".strip()
+            else:
+                cells[col] = line.text
         grid.append(cells)
     used = [i for i in range(len(anchors)) if any(row[i] for row in grid)]
     grid = [[row[i] for i in used] for row in grid]
@@ -107,25 +148,54 @@ def table_to_markdown(lines: list[Line], bbox: BBox) -> str:
 
 
 def detect_table_bboxes_from_lines(lines: list[Line]) -> list[BBox]:
-    """Find item-grid spans from geometry. Does not require img2table."""
-    rows = cluster_rows(lines)
-    if len(rows) < 2:
+    """Item grids plus label/amount pairs. Wrapped description rows stay inside
+    the grid span instead of splitting it."""
+    rows = _logical_rows(lines)
+    if not rows:
         return []
-    flags = [_is_table_row(row) for row in rows]
+    kinds = [_row_kind(row) for row in rows]
+    used = [False] * len(rows)
     bboxes: list[BBox] = []
+
     index = 0
     while index < len(rows):
-        if not flags[index]:
+        if kinds[index] != "grid":
             index += 1
             continue
         start = index
-        index += 1
-        while index < len(rows) and flags[index]:
+        end = index + 1
+        while end < len(rows):
+            if kinds[end] in ("grid", "kv"):
+                end += 1
+                continue
+            if _is_continuation(rows[end], rows[start:end]):
+                end += 1
+                continue
+            break
+        n_grid = sum(1 for j in range(start, end) if kinds[j] == "grid")
+        if n_grid >= 2 or (n_grid >= 1 and end - start >= 2):
+            for j in range(start, end):
+                used[j] = True
+            table_lines = [line for row in rows[start:end] for line in row]
+            bboxes.append(_union_bbox(table_lines))
+        index = max(end, start + 1)
+
+    index = 0
+    while index < len(rows):
+        if used[index] or kinds[index] != "kv":
             index += 1
-        if index - start < 2:
             continue
-        table_lines = [line for row in rows[start:index] for line in row]
+        start = index
+        end = index + 1
+        while end < len(rows) and not used[end] and kinds[end] == "kv":
+            end += 1
+        for j in range(start, end):
+            used[j] = True
+        table_lines = [line for row in rows[start:end] for line in row]
         bboxes.append(_union_bbox(table_lines))
+        index = end
+
+    bboxes.sort(key=lambda box: (box[1], box[0]))
     return bboxes
 
 
@@ -150,13 +220,124 @@ def regions_from_ocr_lines(lines: list[Line], table_bboxes: list[BBox]) -> list[
     return regions
 
 
-def _is_table_row(row: list[Line]) -> bool:
+def _logical_rows(lines: list[Line]) -> list[list[Line]]:
+    """Visual bands, split at a wide horizontal gap (title | 合計金額 box)."""
+    logical: list[list[Line]] = []
+    for band in cluster_rows(lines):
+        logical.extend(_split_wide_gaps(band))
+    return logical
+
+
+def _split_wide_gaps(row: list[Line]) -> list[list[Line]]:
+    """Split a visual band when one gap is an outlier (title | 合計金額).
+
+    Item-table columns have similar gaps; do not split those.
+    """
+    if len(row) < 2:
+        return [row]
+    ordered = sorted(row, key=lambda line: line.bbox[0])
+    gaps = [current.bbox[0] - prev.bbox[2] for prev, current in zip(ordered, ordered[1:])]
+    split_after: set[int] = set()
+    for index, gap in enumerate(gaps):
+        others = [other for j, other in enumerate(gaps) if j != index]
+        sibling = max(others) if others else 0.0
+        if gap >= 120 and (not others or gap >= max(sibling * 2.0, 120.0)):
+            split_after.add(index)
+    if not split_after:
+        return [row]
+    groups: list[list[Line]] = [[ordered[0]]]
+    for index, current in enumerate(ordered[1:]):
+        if index in split_after:
+            groups.append([current])
+        else:
+            groups[-1].append(current)
+    return groups
+
+
+def _row_kind(row: list[Line]) -> str:
     n_cols = _row_cell_count(row)
-    if n_cols >= 3:
-        return True
     joined = "".join(line.text for line in row)
-    hints = sum(1 for header in _TABLE_HEADERS if header in joined)
-    return n_cols >= 2 and hints >= 2
+    if n_cols >= 3:
+        return "grid"
+    if n_cols >= 2 and _header_hint_count(joined) >= 2:
+        return "grid"
+    if (n_cols == 2 or len(row) == 2) and _is_kv_pair(row):
+        return "kv"
+    return "other"
+
+
+def _header_hint_count(text: str) -> int:
+    return sum(1 for header in _TABLE_HEADERS if header in text)
+
+
+def _is_kv_pair(row: list[Line]) -> bool:
+    ordered = sorted(row, key=lambda line: line.bbox[0])
+    left, right = ordered[0], ordered[-1]
+    if left is right:
+        return False
+    left_text, right_text = left.text.strip(), right.text.strip()
+    if any(label in left_text for label in _KV_LABELS):
+        return True
+    if any(label in right_text for label in _KV_LABELS) and _looks_amount(left_text):
+        return True
+    return False
+
+
+def _looks_amount(text: str) -> bool:
+    compact = (
+        text.replace(",", "")
+        .replace(" ", "")
+        .replace("円", "")
+        .replace("¥", "")
+        .replace("￥", "")
+    )
+    digits = sum(ch.isdigit() for ch in compact)
+    if digits < 1:
+        return False
+    other = sum(ch.isalpha() for ch in compact)
+    return digits >= other
+
+
+def _is_continuation(row: list[Line], table_rows: list[list[Line]]) -> bool:
+    if _row_cell_count(row) != 1 or not table_rows:
+        return False
+    line = row[0]
+    prev_lines = [item for group in table_rows for item in group]
+    table_x0 = min(item.bbox[0] for item in prev_lines)
+    table_x1 = max(item.bbox[2] for item in prev_lines)
+    width = max(table_x1 - table_x0, 1.0)
+    if line.cx > table_x0 + width * 0.45:
+        return False
+    last_y1 = max(item.bbox[3] for item in table_rows[-1])
+    gap = line.bbox[1] - last_y1
+    typical = median(item.height for item in prev_lines)
+    return gap <= typical * 4
+
+
+def _merge_wrap_rows(rows: list[list[Line]]) -> list[list[Line]]:
+    if not rows:
+        return []
+    merged: list[list[Line]] = [list(rows[0])]
+    for row in rows[1:]:
+        if _row_cell_count(row) == 1 and merged[-1]:
+            line = row[0]
+            prev = merged[-1]
+            second_x = (
+                sorted(prev, key=lambda item: item.bbox[0])[1].bbox[0]
+                if len(prev) >= 2
+                else prev[0].bbox[2] + 80
+            )
+            if line.cx < second_x:
+                left = min(prev, key=lambda item: item.bbox[0])
+                merged[-1] = [
+                    Line(left.bbox, f"{left.text}\n{line.text}", left.confidence)
+                    if item is left
+                    else item
+                    for item in prev
+                ]
+                continue
+        merged.append(list(row))
+    return merged
 
 
 def _row_cell_count(row: list[Line]) -> int:
