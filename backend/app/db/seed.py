@@ -16,13 +16,13 @@ def seed() -> None:
     settings = get_settings()
     db = get_sessionmaker()()
     try:
-        if not db.scalar(select(User).where(User.email == settings.superadmin_email)):
+        if not db.scalar(select(User).where(User.email == settings.superadmin_email.strip())):
             db.add(
                 User(
                     company_id=None,
-                    email=settings.superadmin_email,
-                    password_hash=hash_password(settings.superadmin_password),
-                    display_name=settings.superadmin_name,
+                    email=settings.superadmin_email.strip(),
+                    password_hash=hash_password(settings.superadmin_password.strip()),
+                    display_name=settings.superadmin_name.strip(),
                     role=UserRole.super_admin.value,
                 )
             )

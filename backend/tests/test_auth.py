@@ -14,6 +14,21 @@ def test_login_wrong_password(client, seed):
     assert response.status_code == 401
 
 
+def test_login_matches_email_with_trailing_cr(client, seed, db):
+    user = seed["user_a"]
+    original = user.email
+    user.email = "user@alpha.jp\r"
+    db.commit()
+    try:
+        response = client.post(
+            "/api/v1/auth/login", json={"email": "user@alpha.jp", "password": "test-password-123"}
+        )
+        assert response.status_code == 200
+    finally:
+        user.email = original
+        db.commit()
+
+
 def test_me(client, auth, seed):
     response = client.get("/api/v1/auth/me", headers=auth("user_a"))
     assert response.status_code == 200

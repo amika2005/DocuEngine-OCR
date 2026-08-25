@@ -20,11 +20,16 @@ def reset(new_password: str) -> None:
     settings = get_settings()
     db = get_sessionmaker()()
     try:
-        user = db.scalar(select(User).where(User.email == settings.superadmin_email))
+        user = db.scalar(select(User).where(User.email == settings.superadmin_email.strip()))
+        if user is None:
+            user = db.scalar(
+                select(User).where(User.role == "super_admin")
+            )
         if not user:
-            print(f"NOT FOUND: no user with email {settings.superadmin_email}")
+            print(f"NOT FOUND: no user with email {settings.superadmin_email.strip()!r}")
             sys.exit(1)
-        user.password_hash = hash_password(new_password)
+        user.email = user.email.strip().replace("\r", "")
+        user.password_hash = hash_password(new_password.strip())
         db.commit()
         print(f"OK: password reset for {settings.superadmin_email} (role={user.role})")
     finally:

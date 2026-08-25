@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -37,8 +37,11 @@ def _token_pair(user: User) -> TokenPair:
 
 @router.post("/login", response_model=TokenPair)
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenPair:
-    user = db.scalar(select(User).where(User.email == body.email))
-    if user is None or not verify_password(body.password, user.password_hash):
+    email = str(body.email).strip().replace("\r", "")
+    user = db.scalar(
+        select(User).where(func.lower(func.replace(User.email, "\r", "")) == email.lower())
+    )
+    if user is None or not verify_password(body.password.replace("\r", ""), user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     if user.status != "active":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Account disabled")
