@@ -70,7 +70,7 @@
     "rematch": "再照合",
     "rematchHint": "マスタ更新後に再度照合します"
   },
-  "nav": { "dashboard": "ダッシュボード", "scan": "スキャン", "masters": "マスタ", "templates": "テンプレート", "documents": "文書", "corrections": "修正", "users": "ユーザー管理", "devices": "スキャナー端末", "training": "学習", "companies": "会社管理", "stats": "統計", "logout": "ログアウト" },
+  "nav": { "dashboard": "ダッシュボード", "scan": "スキャン", "masters": "マスタ", "templates": "テンプレート", "documents": "文書", "corrections": "修正", "users": "ユーザー管理", "devices": "スキャナー端末", "training": "学習", "companies": "会社管理", "stats": "統計", "logout": "ログアウト", "collapse": "サイドバーを閉じる", "expand": "サイドバーを開く" },
   "scan": {
     "title": "スキャン",
     "subtitle": "文書をアップロードすると自動的に OCR 処理されます。スキャナーからの自動取込は DocuEngine Watcher が行います。",
@@ -122,7 +122,16 @@
   "admin": {
     "users": { "title": "ユーザー管理", "add": "ユーザー追加", "name": "氏名", "email": "メール", "role": "権限", "status": "状態", "roles": { "user": "一般", "company_admin": "管理者" } },
     "devices": { "title": "スキャナー端末", "add": "端末登録", "name": "端末名", "lastSeen": "最終接続", "tokenNote": "このトークンは一度だけ表示されます。ウォッチャーアプリに設定してください。" },
-    "companies": { "title": "会社管理", "add": "会社登録", "name": "会社名", "slug": "識別子", "status": "状態", "addAdmin": "管理者を発行" },
+    "companies": {
+      "title": "会社管理",
+      "add": "会社登録",
+      "name": "会社名",
+      "slug": "識別子",
+      "status": "状態",
+      "addAdmin": "管理者を発行",
+      "adminEmailHint": "会社管理者は Sonasu 用ログインとは別のメールアドレスにしてください。",
+      "emailTaken": "このメールアドレスは既に登録されています。別のアドレスを入力してください。"
+    },
     "training": { "title": "学習実行履歴", "trigger": "学習を実行", "status": "状態", "started": "開始", "finished": "終了", "activate": "適用", "rollback": "ロールバック" }
   },
   "common": { "loading": "読み込み中...", "cancel": "キャンセル", "create": "作成", "delete": "削除", "language": "English" }

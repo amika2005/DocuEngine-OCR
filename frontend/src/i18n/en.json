@@ -70,7 +70,7 @@
     "rematch": "Re-match",
     "rematchHint": "Run matching again after updating masters"
   },
-  "nav": { "dashboard": "Dashboard", "scan": "Scan", "masters": "Masters", "templates": "Templates", "documents": "Documents", "corrections": "Corrections", "users": "Users", "devices": "Scanner devices", "training": "Training", "companies": "Companies", "stats": "Stats", "logout": "Sign out" },
+  "nav": { "dashboard": "Dashboard", "scan": "Scan", "masters": "Masters", "templates": "Templates", "documents": "Documents", "corrections": "Corrections", "users": "Users", "devices": "Scanner devices", "training": "Training", "companies": "Companies", "stats": "Stats", "logout": "Sign out", "collapse": "Collapse sidebar", "expand": "Expand sidebar" },
   "scan": {
     "title": "Scan",
     "subtitle": "Uploaded documents are OCR-processed automatically. Scanner auto-import is handled by DocuEngine Watcher.",
@@ -122,7 +122,16 @@
   "admin": {
     "users": { "title": "Users", "add": "Add user", "name": "Name", "email": "Email", "role": "Role", "status": "Status", "roles": { "user": "User", "company_admin": "Admin" } },
     "devices": { "title": "Scanner devices", "add": "Register device", "name": "Device name", "lastSeen": "Last seen", "tokenNote": "This token is shown only once. Configure it in the watcher app." },
-    "companies": { "title": "Companies", "add": "Add company", "name": "Company name", "slug": "Slug", "status": "Status", "addAdmin": "Issue admin login" },
+    "companies": {
+      "title": "Companies",
+      "add": "Add company",
+      "name": "Company name",
+      "slug": "Slug",
+      "status": "Status",
+      "addAdmin": "Issue admin login",
+      "adminEmailHint": "Use a different email than the Sonasu super-admin login.",
+      "emailTaken": "That email is already registered. Use a different address."
+    },
     "training": { "title": "Training runs", "trigger": "Start training", "status": "Status", "started": "Started", "finished": "Finished", "activate": "Activate", "rollback": "Roll back" }
   },
   "common": { "loading": "Loading...", "cancel": "Cancel", "create": "Create", "delete": "Delete", "language": "日本語" }
