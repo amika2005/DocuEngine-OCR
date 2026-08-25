@@ -36,6 +36,58 @@ def test_maps_office_lines_to_regions_with_axis_aligned_boxes():
     assert result.regions[1].bbox == (40.0, 100.0, 300.0, 140.0)
 
 
+def _line(text, x0, y0, x1, y1, score=0.95):
+    return {
+        "text": text,
+        "score": score,
+        "box": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+    }
+
+
+def test_office_payload_assembles_item_grid_into_markdown_table():
+    result = page_result_from_office_payload(
+        {
+            "text": "納品書\n品目\n単価\n数量\n価格\nマスター管理\n45,000\n38\n1,710,000",
+            "lines": [
+                _line("納品書", 40, 30, 140, 70),
+                _line("品目", 40, 400, 120, 430),
+                _line("単価", 200, 400, 270, 430),
+                _line("数量", 320, 400, 390, 430),
+                _line("価格", 460, 400, 540, 430),
+                _line("マスター管理", 40, 450, 180, 480),
+                _line("45,000", 200, 450, 270, 480),
+                _line("38", 320, 450, 360, 480),
+                _line("1,710,000", 460, 450, 560, 480),
+            ],
+        }
+    )
+    tables = [r for r in result.regions if r.kind == "table"]
+    assert len(tables) == 1
+    md = tables[0].markdown
+    assert md.startswith("|")
+    assert "品目" in md
+    assert "マスター管理" in md
+    assert "1,710,000" in md
+    assert "| ---" in md
+    titles = [r.markdown for r in result.regions if r.kind == "text"]
+    assert "納品書" in titles
+    assert "マスター管理" not in titles
+
+
+def test_side_by_side_addresses_are_not_a_table():
+    result = page_result_from_office_payload(
+        {
+            "text": "株式会社アルファ\n株式会社ベータ",
+            "lines": [
+                _line("株式会社アルファ", 40, 40, 220, 70),
+                _line("株式会社ベータ", 400, 40, 580, 70),
+            ],
+        }
+    )
+    assert all(r.kind == "text" for r in result.regions)
+    assert [r.markdown for r in result.regions] == ["株式会社アルファ", "株式会社ベータ"]
+
+
 def test_skips_blank_lines_and_falls_back_to_full_text():
     skipped = page_result_from_office_payload(
         {"text": "keep", "lines": [{"text": "  ", "score": 0.9, "box": [[0, 0], [1, 0], [1, 1], [0, 1]]}]}

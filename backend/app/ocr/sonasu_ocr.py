@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app.ocr.engine import OcrEngine, PageResult, Region
+from app.ocr.table_layout import (
+    Line,
+    detect_table_bboxes_from_lines,
+    regions_from_ocr_lines,
+)
 
 PostJson = Callable[[str, dict[str, str], dict[str, Any], float], dict[str, Any]]
 
@@ -50,21 +55,21 @@ def http_error_message(status: int, body: str, api_key: str = "") -> str:
 
 def page_result_from_office_payload(payload: dict[str, Any]) -> PageResult:
     raw_lines = payload.get("lines") or []
-    regions: list[Region] = []
+    lines: list[Line] = []
     for line in raw_lines:
         text = str(line.get("text") or "").strip()
         if not text:
             continue
-        regions.append(
-            Region(
+        lines.append(
+            Line(
                 bbox=_box_to_bbox(line.get("box") or []),
-                kind="text",
-                markdown=text,
+                text=text,
                 confidence=float(line.get("score") or 0.0),
             )
         )
-    if regions:
-        return PageResult(regions=regions)
+    if lines:
+        table_bboxes = detect_table_bboxes_from_lines(lines)
+        return PageResult(regions=regions_from_ocr_lines(lines, table_bboxes))
     full = str(payload.get("text") or "").strip()
     if full and not raw_lines:
         return PageResult(
