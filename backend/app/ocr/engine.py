@@ -64,6 +64,10 @@ def get_engine() -> OcrEngine:
             from app.ocr.rapid_ocr import RapidOcrEngine
 
             _engine = RapidOcrEngine()
+        elif name == "sonasu-ocr":
+            from app.ocr.sonasu_ocr import SonasuOcrEngine
+
+            _engine = SonasuOcrEngine()
         elif name == "mock":
             from app.ocr.mock import MockEngine
 
@@ -82,11 +86,16 @@ def get_engine() -> OcrEngine:
             ) from exc
         except Exception as exc:
             _engine = None
-            raise RuntimeError(
-                f"OCR engine '{name}' failed to load: {exc}. "
-                "Check MODELS_DIR points at the downloaded model weights "
-                "(scripts/fetch_models.py) or set OCR_ENGINE=mock."
-            ) from exc
+            hint = (
+                "Set SONASU_OCR_API_KEY (Bearer key for https://edge.sonasu.jp) "
+                "or set OCR_ENGINE=mock."
+                if name == "sonasu-ocr"
+                else (
+                    "Check MODELS_DIR points at the downloaded model weights "
+                    "(scripts/fetch_models.py) or set OCR_ENGINE=mock."
+                )
+            )
+            raise RuntimeError(f"OCR engine '{name}' failed to load: {exc}. {hint}") from exc
     return _engine
 
 

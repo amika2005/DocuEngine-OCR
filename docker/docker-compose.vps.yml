@@ -23,6 +23,9 @@ x-backend-env: &backend-env
   MODELS_DIR: /data/models
   OCR_ENGINE: ${OCR_ENGINE:-mock}
   OCR_PHOTO_ENHANCE: "false"
+  SONASU_OCR_BASE_URL: ${SONASU_OCR_BASE_URL:-https://edge.sonasu.jp}
+  SONASU_OCR_API_KEY: ${SONASU_OCR_API_KEY:-}
+  SONASU_OCR_TIMEOUT_SECONDS: ${SONASU_OCR_TIMEOUT_SECONDS:-120}
   SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?set in docker/.env.vps}
   SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?set in docker/.env.vps}
   SUPERADMIN_NAME: ${SUPERADMIN_NAME:-Sonasu Admin}
@@ -76,7 +79,7 @@ services:
       postgres: { condition: service_healthy }
     restart: unless-stopped
 
-  # Mock (or later ppocrv5-cpu) still consumes the ocr_gpu *queue name*.
+  # Mock / sonasu-ocr / later ppocrv5-cpu still consume the ocr_gpu *queue name*.
   worker-ocr:
     image: docuengine/backend:${DOCUENGINE_VERSION:-vps}
     user: root

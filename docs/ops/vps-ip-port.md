@@ -13,9 +13,9 @@ Do **not** change `opervia.net` Caddy. Do **not** bind DocuEngine to 80/443. Do 
 | Database | `sonasu_pm` | `docuengine` |
 | Public URL (test) | `:8100` or Caddy `opervia.net` | `:8200` HTTP |
 | GPU worker | — | **off** (Xserver has no GPU) |
-| OCR | — | `OCR_ENGINE=mock` until CPU models are installed |
+| OCR | — | `OCR_ENGINE=mock` by default. Set `sonasu-ocr` to use the office RapidOCR gateway |
 
-Mock OCR is enough to log in, create a company, upload a file, and see the pipeline complete. Real Japanese OCR needs models + `ppocrv5-cpu` later (RAM-heavy).
+Mock OCR is enough to log in, create a company, and prove the pipeline. Real Japanese text on this VPS uses the **office OCR API** (`https://edge.sonasu.jp/ocr`) — no models on the Xserver box. CPU Paddle on the VPS is the RAM-heavy fallback if the office gateway is unreachable.
 
 ## On the VPS
 
@@ -50,6 +50,37 @@ curl -sS http://127.0.0.1:8200/api/v1/health
 ```
 
 Login: `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` from `docker/.env.vps`. Change the password after first login.
+
+## Office OCR (real Japanese text)
+
+The VPS API still rasterizes PDFs. Each page PNG is POSTed to `https://edge.sonasu.jp/ocr/ocr` with `Authorization: Bearer` (never `X-Api-Key`). Issue a **DocuEngine-only** key; do not reuse another app's key.
+
+From the VPS, confirm the office gateway is reachable **before** switching engines:
+
+```bash
+curl -sS https://edge.sonasu.jp/health/liveliness
+curl -sS https://edge.sonasu.jp/ocr/health -H "Authorization: Bearer YOUR_KEY"
+```
+
+Then in `/opt/docuengine/docker/.env.vps`:
+
+```
+OCR_ENGINE=sonasu-ocr
+SONASU_OCR_BASE_URL=https://edge.sonasu.jp
+SONASU_OCR_API_KEY=YOUR_KEY
+```
+
+Recreate API + workers (not postgres) so they pick up the env. After an API recreate, restart `frontend` or nginx may 502:
+
+```bash
+cd /opt/docuengine
+docker compose -f docker/docker-compose.vps.yml --env-file docker/.env.vps up -d --build api worker-ocr worker-cpu beat
+docker compose -f docker/docker-compose.vps.yml --env-file docker/.env.vps restart frontend
+```
+
+Upload a **new** 見積書/請求書. If the result still says `mock page:` or `サンプル品目`, the workers are still on `OCR_ENGINE=mock`. If the page fails with `SONASU_OCR_API_KEY` or HTTP 401, the key is missing or wrong.
+
+Do **not** `docker compose down -v`. Leave Caddy / `opervia.net` / `:80` / `:443` alone.
 
 ## Hard rules
 

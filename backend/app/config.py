@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     models_dir: Path = Path("./models")
 
-    ocr_engine: str = "mock"  # paddleocr-vl | ppocrv5-cpu | rapidocr | easyocr | mock
+    ocr_engine: str = "mock"  # paddleocr-vl | ppocrv5-cpu | rapidocr | easyocr | sonasu-ocr | mock
+    # Office RapidOCR gateway (https://edge.sonasu.jp). Used when ocr_engine=sonasu-ocr.
+    sonasu_ocr_base_url: str = "https://edge.sonasu.jp"
+    sonasu_ocr_api_key: str = ""
+    sonasu_ocr_timeout_seconds: int = 120
     ocr_model_size: str = "medium"  # rapidocr PP-OCRv6 variant: tiny | small | medium
     # GPU acceleration for the rapidocr engine via DirectML (Windows; any GPU).
     # Requires onnxruntime-directml instead of onnxruntime; falls back to CPU
