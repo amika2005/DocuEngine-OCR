@@ -16,7 +16,38 @@ from sqlalchemy.orm import Session
 from app.models import Document, OcrResult, Page
 
 
+_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+
+
+def _br_to_newline(value: str) -> str:
+    return _BR.sub("\n", value)
+
+
+def _br_to_space(value: str) -> str:
+    return _BR.sub(" ", value)
+
+
 _TABLE_SEP = re.compile(r"^\|[\s\-:|]+\|$")
+
+#: Leading characters that make a spreadsheet client (Excel, LibreOffice,
+#: Google Sheets) interpret a cell as a formula rather than literal text.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_cell(value):
+    """Neutralize spreadsheet formula injection.
+
+    Every cell in these workbooks ultimately comes from OCR'd document
+    content or a user-supplied filename — untrusted, attacker-influenceable
+    text. A cell whose value begins with `=`, `+`, `-`, `@`, TAB or CR is
+    executed as a formula the instant the workbook is opened (e.g.
+    `=cmd|'/c calc'!A1`), so any such value is prefixed with a single quote
+    to force it to render as plain text instead. Only `str` values are
+    subject to this — numbers, dates and `None` cannot carry a formula.
+    """
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
 
 
 def markdown_to_plain_text(markdown: str) -> str:
@@ -33,7 +64,7 @@ def markdown_to_plain_text(markdown: str) -> str:
         if _TABLE_SEP.match(line):  # table separator row
             continue
         if line.startswith("|") and line.endswith("|") and len(line) > 1:
-            cells = [c.strip().replace("\\|", "|").replace("<br>", " ") for c in line[1:-1].split("|")]
+            cells = [_br_to_space(c.strip().replace("\\|", "|")) for c in line[1:-1].split("|")]
             line = "  ".join(c for c in cells if c)
         if line.strip():
             lines.append(line.strip())
@@ -80,7 +111,7 @@ def documents_bulk_xlsx(rows: Iterable[tuple[Document, str]], title: str = "抽�
         created = doc.created_at.strftime("%Y/%m/%d") if doc.created_at else ""
         line = [doc.original_filename, category, created, content or ""]
         for col, value in enumerate(line, start=1):
-            cell = ws.cell(r, col, value)
+            cell = ws.cell(r, col, _sanitize_cell(value))
             cell.border = border
             cell.alignment = Alignment(vertical="top", wrap_text=True)
         if r % 2 == 1:
@@ -112,7 +143,7 @@ def _split_blocks(markdown: str) -> list[tuple[str, list]]:
             if _TABLE_SEP.match(line):
                 continue
             cells = [c.strip().replace("\\|", "|") for c in line[1:-1].split("|")]
-            table.append(cells)
+            table.append([_br_to_newline(c) for c in cells])
             continue
         if table:
             blocks.append(("table", table))
@@ -162,7 +193,12 @@ def document_to_pdf(db: Session, document: Document) -> bytes:
         for kind, content in _split_blocks(markdown):
             if kind == "table":
                 rows = "".join(
-                    "<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in row) + "</tr>"
+                    "<tr>"
+                    + "".join(
+                        f"<td>{'<br/>'.join(html.escape(p) for p in (c.splitlines() or [c]))}</td>"
+                        for c in row
+                    )
+                    + "</tr>"
                     for row in content
                 )
                 parts.append(f"<table>{rows}</table>")
@@ -210,7 +246,7 @@ def document_to_xlsx(db: Session, document: Document) -> bytes:
                 first = True
                 for cells in content:
                     for col_index, cell in enumerate(cells, start=1):
-                        c = sheet.cell(row=row_index, column=col_index, value=cell)
+                        c = sheet.cell(row=row_index, column=col_index, value=_sanitize_cell(cell))
                         c.border = border
                         c.alignment = Alignment(wrap_text=True, vertical="top")
                         if first:
@@ -238,7 +274,7 @@ def document_to_xlsx(db: Session, document: Document) -> bytes:
                     sheet.cell(row=row_index, column=1, value=f"[{content[0] or 'code'}]")
                     row_index += 1
             else:
-                sheet.cell(row=row_index, column=1, value=content[0])
+                sheet.cell(row=row_index, column=1, value=_sanitize_cell(content[0]))
                 row_index += 1
         for col in range(1, max_width + 1):
             sheet.column_dimensions[sheet.cell(row=1, column=col).column_letter].width = 28

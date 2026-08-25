@@ -23,7 +23,7 @@ export default function MatchableMarkdown({
     .filter((match) => match.status !== 'dismissed' && match.matched_text.trim())
     .sort((a, b) => b.matched_text.length - a.matched_text.length);
 
-  function highlightString(text: string, keyPrefix: string): ReactNode[] {
+  function highlightMatches(text: string, keyPrefix: string): ReactNode[] {
     for (const match of active) {
       const index = text.indexOf(match.matched_text);
       if (index === -1) continue;
@@ -52,6 +52,23 @@ export default function MatchableMarkdown({
       ].filter((node) => node !== '');
     }
     return [text];
+  }
+
+  function highlightString(text: string, keyPrefix: string): ReactNode[] {
+    // GFM table cells store wrapped 品目 lines as <br>; react-markdown leaves
+    // that as literal text unless we split it ourselves (no raw HTML).
+    const parts = text.split(/<br\s*\/?>/gi);
+    if (parts.length === 1) {
+      return highlightMatches(text, keyPrefix);
+    }
+    const nodes: ReactNode[] = [];
+    parts.forEach((part, index) => {
+      nodes.push(...highlightMatches(part, `${keyPrefix}p${index}-`));
+      if (index < parts.length - 1) {
+        nodes.push(<br key={`${keyPrefix}br${index}`} />);
+      }
+    });
+    return nodes;
   }
 
   function walk(children: ReactNode, keyPrefix: string): ReactNode {

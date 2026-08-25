@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown as markdownLang } from '@codemirror/lang-markdown';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import MatchableMarkdown from '../../components/MatchableMarkdown';
 import { api } from '../../api/client';
 import type { Correction, OcrResult } from '../../api/types';
 import PageViewer from '../../components/PageViewer';
@@ -98,7 +97,7 @@ export default function CorrectionEditorPage() {
         <section className="rounded-lg border border-slate-200 bg-white p-3">
           {showPreview ? (
             <div className="markdown-body max-h-[70vh] overflow-auto text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              <MatchableMarkdown markdown={text} matches={[]} onMatchClick={() => {}} />
             </div>
           ) : (
             <CodeMirror
