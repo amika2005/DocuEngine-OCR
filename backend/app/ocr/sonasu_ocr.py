@@ -18,11 +18,33 @@ from app.ocr.engine import OcrEngine, PageResult, Region
 
 PostJson = Callable[[str, dict[str, str], dict[str, Any], float], dict[str, Any]]
 
+# Cloudflare Browser Integrity Check (error 1010) rejects Python-urllib's
+# default User-Agent. Keep DocuEngine identifiable and look like a normal client.
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36 DocuEngine-OCR/1.0"
+)
+
+
+def office_ocr_headers(api_key: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": USER_AGENT,
+    }
+
 
 def http_error_message(status: int, body: str, api_key: str = "") -> str:
     text = (body or "")[:500]
     if api_key:
         text = text.replace(api_key, "***")
+    if "1010" in text:
+        return (
+            f"Office OCR HTTP {status}: Cloudflare error 1010 "
+            "(browser/signature blocked). If this persists after a rebuild, "
+            "ask the office admin to allow the VPS IP on edge.sonasu.jp."
+        )
     return f"Office OCR HTTP {status}: {text}"
 
 
@@ -115,10 +137,7 @@ class SonasuOcrEngine(OcrEngine):
         image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
         payload = self._post_json(
             f"{self._base_url}/ocr/ocr",
-            {
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
+            office_ocr_headers(self._api_key),
             {"image_b64": image_b64},
             self._timeout,
         )

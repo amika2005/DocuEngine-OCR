@@ -78,7 +78,7 @@ docker compose -f docker/docker-compose.vps.yml --env-file docker/.env.vps up -d
 docker compose -f docker/docker-compose.vps.yml --env-file docker/.env.vps restart frontend
 ```
 
-Upload a **new** 見積書/請求書. If the result still says `mock page:` or `サンプル品目`, the workers are still on `OCR_ENGINE=mock`. If the page fails with `SONASU_OCR_API_KEY` or HTTP 401, the key is missing or wrong.
+Upload a **new** 見積書/請求書. If the result still says `mock page:` or `サンプル品目`, the workers are still on `OCR_ENGINE=mock`. If the page fails with `SONASU_OCR_API_KEY` or HTTP 401, the key is missing or wrong. HTTP 403 `error code: 1010` is Cloudflare blocking Python's default User-Agent — pull a build that sends `DocuEngine-OCR` as User-Agent, then rebuild `worker-ocr`. If 1010 remains, ask the office admin to allow VPS IP `210.131.210.24` on `edge.sonasu.jp`.
 
 Do **not** `docker compose down -v`. Leave Caddy / `opervia.net` / `:80` / `:443` alone.
 

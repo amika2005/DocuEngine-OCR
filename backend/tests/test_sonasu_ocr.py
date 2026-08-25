@@ -89,6 +89,10 @@ def test_parse_page_posts_bearer_json_not_x_api_key(tmp_path, monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer sk-test-key"
     assert "X-Api-Key" not in captured["headers"]
     assert captured["headers"]["Content-Type"] == "application/json"
+    # Cloudflare error 1010 bans Python-urllib's default User-Agent.
+    assert "Python-urllib" not in captured["headers"]["User-Agent"]
+    assert "DocuEngine-OCR" in captured["headers"]["User-Agent"]
+    assert captured["headers"]["Accept"] == "application/json"
     assert captured["timeout"] == 120
     assert "image_b64" in captured["body"]
     assert result.regions[0].markdown == "見積書"
@@ -123,6 +127,15 @@ def test_http_error_is_actionable_and_does_not_echo_the_key():
     assert "401" in message
     assert "Authentication Error" in message
     assert "secret-key-value" not in message
+
+
+def test_cloudflare_1010_message_is_actionable():
+    from app.ocr.sonasu_ocr import http_error_message
+
+    message = http_error_message(403, "error code: 1010")
+    assert "403" in message
+    assert "1010" in message
+    assert "Cloudflare" in message
 
 
 def test_get_engine_selects_sonasu_ocr(monkeypatch):
