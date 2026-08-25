@@ -213,6 +213,54 @@ def test_parse_page_posts_bearer_json_not_x_api_key(tmp_path, monkeypatch):
     assert result.regions[0].markdown == "見積書"
 
 
+def test_merge_table_bboxes_keeps_non_overlapping_geometry():
+    from app.ocr.table_layout import merge_table_bboxes
+
+    img = [(40.0, 400.0, 600.0, 700.0)]
+    geo = [(50.0, 410.0, 590.0, 690.0), (400.0, 40.0, 700.0, 70.0)]
+    merged = merge_table_bboxes(img, geo)
+    assert (40.0, 400.0, 600.0, 700.0) in merged
+    assert (400.0, 40.0, 700.0, 70.0) in merged
+    assert (50.0, 410.0, 590.0, 690.0) not in merged
+
+
+def test_parse_page_uses_img2table_boxes_then_geometry(tmp_path, monkeypatch):
+    image = tmp_path / "page.png"
+    image.write_bytes(b"\x89PNG fake")
+
+    def fake_post(url, headers, body, timeout):
+        return {
+            "text": "alpha\nbeta",
+            "lines": [
+                _line("alpha", 50, 410, 120, 430),
+                _line("beta", 50, 450, 120, 470),
+            ],
+        }
+
+    monkeypatch.setattr(
+        "app.config.get_settings",
+        lambda: type(
+            "S",
+            (),
+            {
+                "sonasu_ocr_base_url": "https://edge.sonasu.jp",
+                "sonasu_ocr_api_key": "k",
+                "sonasu_ocr_timeout_seconds": 120,
+            },
+        )(),
+    )
+    engine = SonasuOcrEngine(
+        post_json=fake_post,
+        detect_tables=lambda _path: [(40.0, 400.0, 140.0, 480.0)],
+    )
+    engine.load()
+    result = engine.parse_page(image)
+    tables = [r for r in result.regions if r.kind == "table"]
+    assert len(tables) == 1
+    assert "alpha" in tables[0].markdown
+    assert "beta" in tables[0].markdown
+
+
 def test_load_requires_api_key(monkeypatch):
     monkeypatch.setattr(
         "app.config.get_settings",

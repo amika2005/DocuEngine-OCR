@@ -267,21 +267,6 @@ class RapidOcrEngine(OcrEngine):
         return lines
 
     def _detect_tables(self, image_path: Path) -> list[tuple[float, float, float, float]]:
-        """Locate table bounding boxes with img2table (structure only — cell
-        text comes from the main OCR pass)."""
-        try:
-            from img2table.document import Image as Img2TableImage
+        from app.ocr.table_layout import detect_tables_on_image
 
-            img_doc = Img2TableImage(str(image_path))
-            tables = img_doc.extract_tables(implicit_rows=True, borderless_tables=True)
-            return [
-                (
-                    float(t.bbox.x1),
-                    float(t.bbox.y1),
-                    float(t.bbox.x2),
-                    float(t.bbox.y2),
-                )
-                for t in tables
-            ]
-        except Exception:
-            return []  # table detection is best-effort; text lines still cover the page
+        return detect_tables_on_image(image_path)

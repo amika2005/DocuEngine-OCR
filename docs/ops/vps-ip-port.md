@@ -53,7 +53,7 @@ Login: `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` from `docker/.env.vps`. Change
 
 ## Office OCR (real Japanese text)
 
-The VPS API still rasterizes PDFs. Each page PNG is POSTed to `https://edge.sonasu.jp/ocr/ocr` with `Authorization: Bearer` (never `X-Api-Key`). Issue a **DocuEngine-only** key; do not reuse another app's key.
+The VPS API still rasterizes PDFs. Each page PNG is POSTed to `https://edge.sonasu.jp/ocr/ocr` for **text**. Table grids are detected on the worker with **img2table** (same library as local RapidOCR); geometry fallback still catches 合計金額-style pairs. Issue a **DocuEngine-only** key; do not reuse another app's key.
 
 From the VPS, confirm the office gateway is reachable **before** switching engines:
 

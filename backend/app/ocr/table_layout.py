@@ -2,13 +2,13 @@
 
 Office RapidOCR returns text + positions only. This module:
 
-- clusters lines into visual rows (vertical overlap, not just y-center)
-- treats 3+ column grids as tables, keeping wrapped 品目 descriptions in-cell
-- also turns label/amount pairs (合計金額, 小計, 合計, …) into 2-column tables
+- prefers img2table bounding boxes from the page image (ruled + borderless)
+- falls back to geometry: 3+ column grids, wrapped 品目, 合計金額 pairs
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from statistics import median
 
 from app.ocr.assemble import cells_to_markdown
@@ -197,6 +197,60 @@ def detect_table_bboxes_from_lines(lines: list[Line]) -> list[BBox]:
 
     bboxes.sort(key=lambda box: (box[1], box[0]))
     return bboxes
+
+
+def detect_tables_on_image(image_path: Path) -> list[BBox]:
+    """img2table structure only — cell text comes from the OCR line pass.
+
+    Missing opencv/img2table (API image without the tables extra) is a
+    no-op so geometry fallback still runs.
+    """
+    try:
+        from img2table.document import Image as Img2TableImage
+
+        document = Img2TableImage(str(image_path))
+        tables = document.extract_tables(implicit_rows=True, borderless_tables=True)
+    except Exception:
+        return []
+    boxes: list[BBox] = []
+    for table in tables:
+        box = (
+            float(table.bbox.x1),
+            float(table.bbox.y1),
+            float(table.bbox.x2),
+            float(table.bbox.y2),
+        )
+        boxes.append(_expand_bbox(box, pad=8.0))
+    return boxes
+
+
+def merge_table_bboxes(image_boxes: list[BBox], geometry_boxes: list[BBox]) -> list[BBox]:
+    """Prefer img2table grids; keep geometry boxes (合計金額, …) that do not overlap."""
+    merged = list(image_boxes)
+    for geo in geometry_boxes:
+        if any(_bbox_iou(geo, existing) > 0.25 for existing in merged):
+            continue
+        merged.append(geo)
+    merged.sort(key=lambda box: (box[1], box[0]))
+    return merged
+
+
+def _expand_bbox(box: BBox, pad: float) -> BBox:
+    return (box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad)
+
+
+def _bbox_iou(a: BBox, b: BBox) -> float:
+    x0 = max(a[0], b[0])
+    y0 = max(a[1], b[1])
+    x1 = min(a[2], b[2])
+    y1 = min(a[3], b[3])
+    inter = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+    if inter <= 0:
+        return 0.0
+    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+    denom = area_a + area_b - inter
+    return inter / denom if denom else 0.0
 
 
 def regions_from_ocr_lines(lines: list[Line], table_bboxes: list[BBox]) -> list[Region]:

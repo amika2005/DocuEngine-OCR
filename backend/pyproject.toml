@@ -35,6 +35,12 @@ ocr = [
     "onnxruntime>=1.20",
     "img2table>=1.4",
 ]
+# Table structure on the VPS worker (office OCR for text, img2table for grids).
+# Do not pull paddleocr — that extra is for GPU/CPU local engines.
+tables = [
+    "opencv-python-headless>=4.8",
+    "img2table>=1.4",
+]
 dev = [
     "pytest>=8.2",
     "httpx>=0.27",

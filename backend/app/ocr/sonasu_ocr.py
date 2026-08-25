@@ -18,6 +18,8 @@ from app.ocr.engine import OcrEngine, PageResult, Region
 from app.ocr.table_layout import (
     Line,
     detect_table_bboxes_from_lines,
+    detect_tables_on_image,
+    merge_table_bboxes,
     regions_from_ocr_lines,
 )
 
@@ -53,7 +55,10 @@ def http_error_message(status: int, body: str, api_key: str = "") -> str:
     return f"Office OCR HTTP {status}: {text}"
 
 
-def page_result_from_office_payload(payload: dict[str, Any]) -> PageResult:
+def page_result_from_office_payload(
+    payload: dict[str, Any],
+    image_table_bboxes: list[tuple[float, float, float, float]] | None = None,
+) -> PageResult:
     raw_lines = payload.get("lines") or []
     lines: list[Line] = []
     for line in raw_lines:
@@ -68,7 +73,8 @@ def page_result_from_office_payload(payload: dict[str, Any]) -> PageResult:
             )
         )
     if lines:
-        table_bboxes = detect_table_bboxes_from_lines(lines)
+        geometry = detect_table_bboxes_from_lines(lines)
+        table_bboxes = merge_table_bboxes(image_table_bboxes or [], geometry)
         return PageResult(regions=regions_from_ocr_lines(lines, table_bboxes))
     full = str(payload.get("text") or "").strip()
     if full and not raw_lines:
@@ -118,8 +124,13 @@ def default_office_ocr_post(
 class SonasuOcrEngine(OcrEngine):
     name = "sonasu-ocr"
 
-    def __init__(self, post_json: PostJson | None = None) -> None:
+    def __init__(
+        self,
+        post_json: PostJson | None = None,
+        detect_tables: Callable[[Path], list[tuple[float, float, float, float]]] | None = None,
+    ) -> None:
         self._post_json = post_json or default_office_ocr_post
+        self._detect_tables = detect_tables or detect_tables_on_image
         self._base_url = ""
         self._api_key = ""
         self._timeout = 120.0
@@ -146,4 +157,7 @@ class SonasuOcrEngine(OcrEngine):
             {"image_b64": image_b64},
             self._timeout,
         )
-        return page_result_from_office_payload(payload)
+        return page_result_from_office_payload(
+            payload,
+            image_table_bboxes=self._detect_tables(image_path),
+        )
