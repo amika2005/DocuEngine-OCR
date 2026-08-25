@@ -1,0 +1,127 @@
+# Same-VPS IP:port stack (no domain). Does not bind 80/443 — those belong to
+# Caddy + sonasu-pm (opervia.net). Does not start a GPU worker.
+#
+# From this repo on the VPS:
+#   cp docker/.env.vps.example docker/.env.vps   # edit secrets
+#   docker compose -f docker/docker-compose.vps.yml --env-file docker/.env.vps up -d --build
+#
+# Open http://<vps-ip>:8200/   (Xserver firewall: allow TCP 8200)
+# Never: docker compose down -v  on this OR the sonasu-pm project.
+
+name: docuengine
+
+x-backend-env: &backend-env
+  DOCUENGINE_ENV: ${DOCUENGINE_ENV:-production}
+  SECRET_KEY: ${SECRET_KEY:?set in docker/.env.vps}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:-docuengine}
+  POSTGRES_USER: ${POSTGRES_USER:-docuengine}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in docker/.env.vps}
+  REDIS_URL: redis://redis:6379/0
+  DATA_DIR: /data
+  MODELS_DIR: /data/models
+  OCR_ENGINE: ${OCR_ENGINE:-mock}
+  SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?set in docker/.env.vps}
+  SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:?set in docker/.env.vps}
+  SUPERADMIN_NAME: ${SUPERADMIN_NAME:-Sonasu Admin}
+  TRAINING_ENABLED: ${TRAINING_ENABLED:-false}
+  RUN_SEED: ${RUN_SEED:-1}
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  PADDLE_PDX_MODEL_SOURCE: local
+
+services:
+  frontend:
+    image: docuengine/frontend:${DOCUENGINE_VERSION:-vps}
+    build: { context: .., dockerfile: docker/frontend.Dockerfile }
+    ports:
+      - "${HTTP_PORT:-8200}:80"
+    volumes:
+      - ./nginx.http.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+
+  api:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-vps}
+    build: { context: .., dockerfile: docker/api.Dockerfile }
+    user: root
+    volumes:
+      - docuengine-data:/data
+      - ./vps-entrypoint.sh:/entrypoint.sh:ro
+    command: ["/bin/sh", "/entrypoint.sh"]
+    environment: *backend-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    restart: unless-stopped
+
+  worker-cpu:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-vps}
+    command: celery -A app.tasks.celery_app worker -Q cpu -c 2 --loglevel=info -n worker-cpu@%h
+    environment: *backend-env
+    volumes:
+      - docuengine-data:/data
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  # Mock (or later ppocrv5-cpu) still consumes the ocr_gpu *queue name*.
+  worker-ocr:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-vps}
+    command: celery -A app.tasks.celery_app worker -Q ocr_gpu -c 1 --prefetch-multiplier=1 --loglevel=info -n worker-ocr@%h
+    environment: *backend-env
+    volumes:
+      - docuengine-data:/data
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  beat:
+    image: docuengine/backend:${DOCUENGINE_VERSION:-vps}
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    environment: *backend-env
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-docuengine}
+      POSTGRES_USER: ${POSTGRES_USER:-docuengine}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in docker/.env.vps}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  docuengine-data:
