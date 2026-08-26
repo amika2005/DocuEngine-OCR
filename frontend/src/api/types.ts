@@ -117,6 +117,7 @@ export interface Company {
   max_users: number;
   max_devices: number;
   created_at: string;
+  admin_count?: number;
 }
 
 export interface User {
@@ -125,7 +126,9 @@ export interface User {
   display_name: string;
   role: string;
   status: string;
+  company_id?: string | null;
   last_login_at: string | null;
+  created_at?: string | null;
 }
 
 export interface Device {

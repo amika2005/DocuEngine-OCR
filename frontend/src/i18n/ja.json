@@ -1,6 +1,16 @@
 {
   "appName": "DocuEngine",
-  "login": { "title": "ログイン", "email": "メールアドレス", "password": "パスワード", "submit": "ログイン", "error": "メールアドレスまたはパスワードが正しくありません" },
+  "login": {
+    "title": "ログイン",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "submit": "ログイン",
+    "error": "メールアドレスまたはパスワードが正しくありません",
+    "tagline": "スキャン。読み取り。修正。",
+    "heroBody": "日本語帳票の OCR — スキャンから処理まで、ひとつの画面で。",
+    "scanning": "スキャン中",
+    "processing": "処理中"
+  },
   "dashboard": {
     "title": "ダッシュボード",
     "today": "本日の文書",
@@ -130,7 +140,21 @@
       "status": "状態",
       "addAdmin": "管理者を発行",
       "adminEmailHint": "会社管理者は Sonasu 用ログインとは別のメールアドレスにしてください。",
-      "emailTaken": "このメールアドレスは既に登録されています。別のアドレスを入力してください。"
+      "emailTaken": "このメールアドレスは既に登録されています。別のアドレスを入力してください。",
+      "admins": "管理者",
+      "issuedCount": "{{count}} 件発行",
+      "issuedLogins": "発行済み管理者ログイン",
+      "noAdmins": "まだ管理者ログインは発行されていません。",
+      "showAdmins": "発行内容を表示",
+      "hideAdmins": "閉じる",
+      "justIssued": "管理者ログインを発行しました",
+      "passwordNotStored": "パスワードはこの一覧には保存されません。まだ手元にあるなら今すぐ共有してください。",
+      "lastLogin": "最終ログイン",
+      "issuedAt": "発行日時",
+      "deactivate": "無効化",
+      "activate": "有効化",
+      "confirmDelete": "{{email}} を削除しますか？このアカウントではログインできなくなります。",
+      "adminStatus": { "active": "有効", "disabled": "無効" }
     },
     "training": { "title": "学習実行履歴", "trigger": "学習を実行", "status": "状態", "started": "開始", "finished": "終了", "activate": "適用", "rollback": "ロールバック" }
   },

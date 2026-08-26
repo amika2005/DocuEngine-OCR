@@ -32,6 +32,7 @@ class CompanyOut(BaseModel):
     max_devices: int
     settings: dict
     created_at: datetime
+    admin_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -57,6 +58,7 @@ class UserOut(BaseModel):
     status: str
     company_id: uuid.UUID | None
     last_login_at: datetime | None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

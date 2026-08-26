@@ -17,3 +17,106 @@ body {
 .markdown-body table { @apply border-collapse my-3 w-full text-sm; }
 .markdown-body th, .markdown-body td { @apply border border-slate-300 px-2 py-1; }
 .markdown-body th { @apply bg-slate-100; }
+
+/* Login — scanner bed, not a generic split-screen card. */
+.login-hero {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.16), transparent 55%),
+    linear-gradient(165deg, #071422 0%, #0b1f3a 48%, #061018 100%);
+}
+
+.login-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 85%);
+}
+
+.login-title {
+  font-family: 'Hiragino Sans', 'Yu Gothic UI', system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.login-sheet {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px 10px 10px 4px;
+  background: #f7f4ee;
+  padding: 1.1rem 1.15rem 1.25rem;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    18px 22px 40px rgba(0, 0, 0, 0.35);
+}
+
+.login-row {
+  display: grid;
+  grid-template-columns: 1.6fr 0.6fr 0.9fr;
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 0.2rem 0;
+}
+
+.login-row-hit {
+  background: rgba(34, 211, 238, 0.16);
+  outline: 1px solid rgba(34, 211, 238, 0.45);
+}
+
+.login-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #5eead4, transparent);
+  box-shadow: 0 0 16px 4px rgba(45, 212, 191, 0.45);
+  animation: de-scan 3.4s ease-in-out infinite;
+}
+
+.login-box {
+  position: absolute;
+  border: 1px solid rgba(34, 211, 238, 0.7);
+  border-radius: 2px;
+  animation: de-box 3.4s ease-in-out infinite;
+}
+
+.login-box-a {
+  left: 8%;
+  top: 38%;
+  width: 42%;
+  height: 14%;
+}
+
+.login-box-b {
+  right: 10%;
+  top: 62%;
+  width: 28%;
+  height: 12%;
+  animation-delay: 0.6s;
+}
+
+@keyframes de-scan {
+  0% { top: 12%; opacity: 0.25; }
+  45% { opacity: 1; }
+  100% { top: 86%; opacity: 0.2; }
+}
+
+@keyframes de-box {
+  0%, 25% { opacity: 0; }
+  40%, 70% { opacity: 1; }
+  100% { opacity: 0.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-scan,
+  .login-box {
+    animation: none;
+  }
+  .login-scan {
+    top: 48%;
+  }
+  .login-box {
+    opacity: 0.7;
+  }
+}

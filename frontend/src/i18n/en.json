@@ -1,6 +1,16 @@
 {
   "appName": "DocuEngine",
-  "login": { "title": "Sign in", "email": "Email", "password": "Password", "submit": "Sign in", "error": "Invalid email or password" },
+  "login": {
+    "title": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "error": "Invalid email or password",
+    "tagline": "Scan. Read. Correct.",
+    "heroBody": "Japanese document OCR — from the scan bed to a structured result.",
+    "scanning": "Scanning",
+    "processing": "Processing"
+  },
   "dashboard": {
     "title": "Dashboard",
     "today": "Documents today",
@@ -130,7 +140,21 @@
       "status": "Status",
       "addAdmin": "Issue admin login",
       "adminEmailHint": "Use a different email than the Sonasu super-admin login.",
-      "emailTaken": "That email is already registered. Use a different address."
+      "emailTaken": "That email is already registered. Use a different address.",
+      "admins": "Admins",
+      "issuedCount": "{{count}} issued",
+      "issuedLogins": "Issued admin logins",
+      "noAdmins": "No admin login issued yet.",
+      "showAdmins": "Show issued",
+      "hideAdmins": "Hide",
+      "justIssued": "Admin login issued",
+      "passwordNotStored": "Password is not stored in this list. Share it now if you still have it.",
+      "lastLogin": "Last login",
+      "issuedAt": "Issued",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "confirmDelete": "Delete {{email}}? They will no longer be able to sign in.",
+      "adminStatus": { "active": "Active", "disabled": "Deactivated" }
     },
     "training": { "title": "Training runs", "trigger": "Start training", "status": "Status", "started": "Started", "finished": "Finished", "activate": "Activate", "rollback": "Roll back" }
   },

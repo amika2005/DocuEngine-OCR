@@ -15,21 +15,64 @@ from app.models import (
     Company,
     Document,
     ModelVersion,
-    ModelVersionStatus,
     User,
     UserRole,
 )
-from app.schemas.admin import CompanyCreate, CompanyOut, CompanyUpdate, UserCreate, UserOut
+from app.schemas.admin import (
+    CompanyCreate,
+    CompanyOut,
+    CompanyUpdate,
+    UserCreate,
+    UserOut,
+    UserUpdate,
+)
 from app.schemas.document import ModelVersionOut
 from app.services.audit import log_action
 from app.services.security import hash_password
 
 router = APIRouter(prefix="/admin", tags=["super-admin"], dependencies=[Depends(require_super_admin)])
 
+_ALLOWED_ADMIN_STATUSES = {"active", "disabled"}
+
+
+def _admin_counts(db: Session) -> dict[uuid.UUID, int]:
+    return {
+        row[0]: row[1]
+        for row in db.execute(
+            select(User.company_id, func.count())
+            .where(User.role == UserRole.company_admin.value, User.company_id.isnot(None))
+            .group_by(User.company_id)
+        )
+    }
+
+
+def serialize_company(company: Company, admin_count: int = 0) -> CompanyOut:
+    return CompanyOut.model_validate(company).model_copy(update={"admin_count": admin_count})
+
+
+def _get_company(db: Session, company_id: uuid.UUID) -> Company:
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found")
+    return company
+
+
+def _get_company_admin(db: Session, company_id: uuid.UUID, user_id: uuid.UUID) -> User:
+    user = db.get(User, user_id)
+    if (
+        user is None
+        or user.company_id != company_id
+        or user.role != UserRole.company_admin.value
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Admin not found")
+    return user
+
 
 @router.get("/companies", response_model=list[CompanyOut])
 def list_companies(db: Session = Depends(get_db)):
-    return db.scalars(select(Company).order_by(Company.created_at)).all()
+    companies = db.scalars(select(Company).order_by(Company.created_at)).all()
+    counts = _admin_counts(db)
+    return [serialize_company(company, counts.get(company.id, 0)) for company in companies]
 
 
 @router.post("/companies", response_model=CompanyOut, status_code=status.HTTP_201_CREATED)
@@ -47,15 +90,13 @@ def create_company(
                target_id=str(company.id), detail={"name": company.name})
     db.commit()
     publish_event(company.id, "company.created", {"name": company.name})
-    return company
+    return serialize_company(company, 0)
 
 
 @router.get("/companies/{company_id}", response_model=CompanyOut)
 def get_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
-    company = db.get(Company, company_id)
-    if company is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found")
-    return company
+    company = _get_company(db, company_id)
+    return serialize_company(company, _admin_counts(db).get(company.id, 0))
 
 
 @router.patch("/companies/{company_id}", response_model=CompanyOut)
@@ -65,15 +106,13 @@ def update_company(
     db: Session = Depends(get_db),
     admin: User = Depends(require_super_admin),
 ):
-    company = db.get(Company, company_id)
-    if company is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found")
+    company = _get_company(db, company_id)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(company, field, value)
     log_action(db, "company.update", actor_user_id=admin.id, target_type="company",
                target_id=str(company.id))
     db.commit()
-    return company
+    return serialize_company(company, _admin_counts(db).get(company.id, 0))
 
 
 @router.post(
@@ -87,9 +126,7 @@ def create_company_admin(
     db: Session = Depends(get_db),
     admin: User = Depends(require_super_admin),
 ):
-    company = db.get(Company, company_id)
-    if company is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found")
+    _get_company(db, company_id)
     if db.scalar(select(User).where(User.email == body.email)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
     user = User(
@@ -104,8 +141,58 @@ def create_company_admin(
     log_action(db, "user.create", company_id=company_id, actor_user_id=admin.id,
                target_type="user", target_id=str(user.id), detail={"role": user.role})
     db.commit()
+    db.refresh(user)
     publish_event(company_id, "company.users.changed", {"action": "created"})
     return user
+
+
+@router.get("/companies/{company_id}/admins", response_model=list[UserOut])
+def list_company_admins(company_id: uuid.UUID, db: Session = Depends(get_db)):
+    _get_company(db, company_id)
+    return db.scalars(
+        select(User)
+        .where(User.company_id == company_id, User.role == UserRole.company_admin.value)
+        .order_by(User.created_at)
+    ).all()
+
+
+@router.patch("/companies/{company_id}/admins/{user_id}", response_model=UserOut)
+def update_company_admin(
+    company_id: uuid.UUID,
+    user_id: uuid.UUID,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    user = _get_company_admin(db, company_id, user_id)
+    updates = body.model_dump(exclude_unset=True)
+    if "role" in updates:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot change admin role here")
+    if "status" in updates and updates["status"] not in _ALLOWED_ADMIN_STATUSES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid status")
+    for field, value in updates.items():
+        setattr(user, field, value)
+    log_action(db, "user.update", company_id=company_id, actor_user_id=admin.id,
+               target_type="user", target_id=str(user.id), detail=updates)
+    db.commit()
+    db.refresh(user)
+    publish_event(company_id, "company.users.changed", {"action": "updated"})
+    return user
+
+
+@router.delete("/companies/{company_id}/admins/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_company_admin(
+    company_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    user = _get_company_admin(db, company_id, user_id)
+    log_action(db, "user.delete", company_id=company_id, actor_user_id=admin.id,
+               target_type="user", target_id=str(user.id), detail={"email": user.email})
+    db.delete(user)
+    db.commit()
+    publish_event(company_id, "company.users.changed", {"action": "deleted"})
 
 
 @router.get("/stats")
