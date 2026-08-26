@@ -103,6 +103,9 @@ export interface Correction {
   region_index: number | null;
   status: string;
   created_at: string;
+  document_id?: string | null;
+  filename?: string | null;
+  page_number?: number | null;
 }
 
 export interface Company {

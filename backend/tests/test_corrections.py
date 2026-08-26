@@ -58,6 +58,9 @@ def test_correction_lifecycle(client, auth, db, seed, page_with_result):
     correction = created.json()
     assert correction["status"] == "draft"
     assert correction["original_markdown"].startswith("# 請求書")
+    assert correction["page_number"] == 1
+    assert correction["document_id"] == str(page_with_result.document_id)
+    assert correction["filename"].startswith("corr-")
 
     updated = client.put(
         f"/api/v1/corrections/{correction['id']}",
@@ -142,3 +145,21 @@ def test_corrections_invisible_across_tenants(client, auth, seed, page_with_resu
         ).status_code
         == 404
     )
+
+
+def test_corrections_list_includes_document_location(client, auth, seed, page_with_result):
+    created = client.post(
+        f"/api/v1/pages/{page_with_result.id}/corrections",
+        headers=auth("user_a"),
+        json={
+            "corrected_markdown": "# 請求書\n\n| 品目 | 金額 |\n| --- | --- |\n| B | ¥100 |"
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    listed = client.get("/api/v1/corrections", headers=auth("user_a"))
+    assert listed.status_code == 200
+    match = next(item for item in listed.json() if item["id"] == body["id"])
+    assert match["document_id"] == str(page_with_result.document_id)
+    assert match["filename"] == body["filename"]
+    assert match["page_number"] == 1

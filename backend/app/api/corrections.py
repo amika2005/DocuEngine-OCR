@@ -11,6 +11,7 @@ from app.models import (
     Company,
     Correction,
     CorrectionStatus,
+    Document,
     OcrResult,
     Page,
     User,
@@ -19,6 +20,26 @@ from app.schemas.document import CorrectionCreate, CorrectionOut, CorrectionUpda
 from app.services.audit import log_action
 
 router = APIRouter(tags=["corrections"])
+
+
+def serialize_correction(
+    correction: Correction,
+    *,
+    page: Page | None = None,
+    document: Document | None = None,
+    db: Session | None = None,
+) -> CorrectionOut:
+    if page is None and db is not None:
+        page = db.get(Page, correction.page_id)
+    if document is None and page is not None and db is not None:
+        document = db.get(Document, page.document_id)
+    return CorrectionOut.model_validate(correction).model_copy(
+        update={
+            "document_id": page.document_id if page else None,
+            "filename": document.original_filename if document else None,
+            "page_number": page.page_number if page else None,
+        }
+    )
 
 
 def _get_correction(db: Session, user: User, correction_id: uuid.UUID) -> Correction:
@@ -80,12 +101,13 @@ def create_correction(
         rewrite_document_markdown(db, page.id)
 
     db.commit()
+    db.refresh(correction)
     publish_event(user.company_id, "corrections.changed", {"action": "created"})
     if body.region_index is None:
         publish_event(
             user.company_id, f"document.{page.document_id}.status", {"status": "updated"}
         )
-    return correction
+    return serialize_correction(correction, page=page, db=db)
 
 
 @router.put("/corrections/{correction_id}", response_model=CorrectionOut)
@@ -100,7 +122,8 @@ def update_correction(
         raise HTTPException(status.HTTP_409_CONFLICT, "Correction can no longer be edited")
     correction.corrected_markdown = body.corrected_markdown
     db.commit()
-    return correction
+    db.refresh(correction)
+    return serialize_correction(correction, db=db)
 
 
 @router.post("/corrections/{correction_id}/submit", response_model=CorrectionOut)
@@ -121,8 +144,9 @@ def submit_correction(
     log_action(db, "correction.submit", company_id=user.company_id, actor_user_id=user.id,
                target_type="correction", target_id=str(correction.id))
     db.commit()
+    db.refresh(correction)
     publish_event(user.company_id, "corrections.changed", {"action": "submitted"})
-    return correction
+    return serialize_correction(correction, db=db)
 
 
 @router.get("/corrections", response_model=list[CorrectionOut])
@@ -131,10 +155,19 @@ def list_corrections(
     user: User = Depends(require_company_member),
     db: Session = Depends(get_db),
 ):
-    query = select(Correction).where(Correction.company_id == user.company_id)
+    query = (
+        select(Correction, Page, Document)
+        .join(Page, Page.id == Correction.page_id)
+        .join(Document, Document.id == Page.document_id)
+        .where(Correction.company_id == user.company_id)
+    )
     if status_filter:
         query = query.where(Correction.status == status_filter)
-    return db.scalars(query.order_by(Correction.created_at.desc()).limit(200)).all()
+    rows = db.execute(query.order_by(Correction.created_at.desc()).limit(200)).all()
+    return [
+        serialize_correction(correction, page=page, document=document)
+        for correction, page, document in rows
+    ]
 
 
 @router.post("/corrections/{correction_id}/approve", response_model=CorrectionOut)
@@ -150,8 +183,9 @@ def approve_correction(
     log_action(db, "correction.approve", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="correction", target_id=str(correction.id))
     db.commit()
+    db.refresh(correction)
     publish_event(admin.company_id, "corrections.changed", {"action": "approved"})
-    return correction
+    return serialize_correction(correction, db=db)
 
 
 @router.post("/corrections/{correction_id}/reject", response_model=CorrectionOut)
@@ -167,5 +201,6 @@ def reject_correction(
     log_action(db, "correction.reject", company_id=admin.company_id, actor_user_id=admin.id,
                target_type="correction", target_id=str(correction.id))
     db.commit()
+    db.refresh(correction)
     publish_event(admin.company_id, "corrections.changed", {"action": "rejected"})
-    return correction
+    return serialize_correction(correction, db=db)

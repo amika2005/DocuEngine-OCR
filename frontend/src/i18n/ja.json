@@ -118,7 +118,7 @@
   },
   "detail": { "originalImage": "原本画像", "markdown": "Markdown 結果", "textLines": "テキスト行", "boxes": "領域表示", "addRow": "下に行を追加", "removeRow": "行を削除", "codes": "バーコード / QR", "barcode": "バーコード", "download": "ダウンロード", "reprocess": "再処理", "edit": "修正する", "confidence": "信頼度", "progress": "{{done}} / {{total}} ページ処理済", "pageFailed": "ページ {{page}} の OCR に失敗しました", "visPrivate": "自分のみ", "visShared": "全員", "visibilityHint": "この文書を見られる範囲を切り替え" },
   "editor": { "title": "OCR 結果の修正", "save": "保存", "submit": "修正を送信", "preview": "プレビュー", "saved": "保存しました", "submitted": "修正を送信しました。学習データとして利用されます。" },
-  "corrections": { "title": "修正一覧", "approve": "承認", "reject": "却下", "region": "領域 {{index}}", "noChanges": "変更なし", "status": { "draft": "下書き", "submitted": "承認待ち", "approved": "承認済", "rejected": "却下", "used_in_training": "学習済" } },
+  "corrections": { "title": "修正一覧", "approve": "承認", "reject": "却下", "region": "領域 {{index}}", "noChanges": "変更なし", "where": "{{file}} · {{page}}ページ", "document": "文書", "openDocument": "文書を開く", "changedCell": "修正箇所", "changedLine": "修正テキスト", "row": "{{n}}行目", "moreChanges": "他 {{count}} 件の変更", "status": { "draft": "下書き", "submitted": "承認待ち", "approved": "承認済", "rejected": "却下", "used_in_training": "学習済" } },
   "admin": {
     "users": { "title": "ユーザー管理", "add": "ユーザー追加", "name": "氏名", "email": "メール", "role": "権限", "status": "状態", "roles": { "user": "一般", "company_admin": "管理者" } },
     "devices": { "title": "スキャナー端末", "add": "端末登録", "name": "端末名", "lastSeen": "最終接続", "tokenNote": "このトークンは一度だけ表示されます。ウォッチャーアプリに設定してください。" },

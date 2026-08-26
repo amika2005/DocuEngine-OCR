@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, downloadFile } from '../../api/client';
@@ -29,8 +29,10 @@ export default function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [selectedPage, setSelectedPage] = useState(0);
+  const appliedPageParam = useRef(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [popup, setPopup] = useState<{ match: MasterMatch; anchor: HTMLElement } | null>(null);
   const [linkBusy, setLinkBusy] = useState(false);
@@ -81,6 +83,21 @@ export default function DocumentDetailPage() {
     queryFn: () => api<Page[]>(`/documents/${id}/pages`),
     enabled: !!doc && doc.status !== 'uploaded',
   });
+
+  const pageParam = searchParams.get('page');
+  useEffect(() => {
+    appliedPageParam.current = false;
+  }, [id]);
+  useEffect(() => {
+    if (appliedPageParam.current || !pages?.length || !pageParam) return;
+    const num = Number(pageParam);
+    if (!Number.isFinite(num)) return;
+    const idx = pages.findIndex((p) => p.page_number === num);
+    if (idx >= 0) {
+      setSelectedPage(idx);
+      appliedPageParam.current = true;
+    }
+  }, [pages, pageParam]);
   const { data: markdown } = useQuery({
     queryKey: ['document-markdown', id],
     queryFn: () => api<string>(`/documents/${id}/markdown`),

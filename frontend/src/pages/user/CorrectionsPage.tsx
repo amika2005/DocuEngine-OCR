@@ -1,23 +1,18 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useLiveInvalidate } from '../../api/useEvents';
 import type { Correction } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
+import {
+  commonAffix,
+  diffCorrectionMarkdown,
+  type CorrectionChange,
+} from '../../lib/correctionDiff';
 
-function diffLines(original: string, corrected: string) {
-  const oldLines = original.split('\n');
-  const newLines = corrected.split('\n');
-  const changes: { old: string; new: string }[] = [];
-  const max = Math.max(oldLines.length, newLines.length);
-  for (let i = 0; i < max; i++) {
-    const o = oldLines[i] ?? '';
-    const n = newLines[i] ?? '';
-    if (o !== n) changes.push({ old: o, new: n });
-  }
-  return changes;
-}
+const MAX_CHANGES = 40;
 
 const statusColor: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600',
@@ -26,6 +21,36 @@ const statusColor: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
   used_in_training: 'bg-blue-100 text-blue-700',
 };
+
+function ChangeSnippet({ change }: { change: CorrectionChange }) {
+  const { prefix, oldMid, newMid, suffix } = commonAffix(change.oldText, change.newText);
+  const showOld = Boolean(change.oldText);
+  const showNew = Boolean(change.newText);
+
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+      {showOld && (
+        <span className="min-w-0 whitespace-pre-wrap break-words text-slate-700">
+          {prefix}
+          {oldMid ? (
+            <span className="rounded bg-red-50 px-0.5 text-red-700 line-through">{oldMid}</span>
+          ) : null}
+          {suffix}
+        </span>
+      )}
+      {showOld && showNew && <span className="shrink-0 text-slate-300">→</span>}
+      {showNew && (
+        <span className="min-w-0 whitespace-pre-wrap break-words text-slate-700">
+          {prefix}
+          {newMid ? (
+            <span className="rounded bg-green-50 px-0.5 text-green-800">{newMid}</span>
+          ) : null}
+          {suffix}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function CorrectionCard({
   correction,
@@ -38,21 +63,38 @@ function CorrectionCard({
 }) {
   const { t } = useTranslation();
   const changes = useMemo(
-    () => diffLines(correction.original_markdown, correction.corrected_markdown),
+    () => diffCorrectionMarkdown(correction.original_markdown, correction.corrected_markdown),
     [correction.original_markdown, correction.corrected_markdown],
   );
+  const visible = changes.slice(0, MAX_CHANGES);
+  const hiddenCount = changes.length - visible.length;
+  const documentTo =
+    correction.document_id != null
+      ? `/documents/${correction.document_id}${
+          correction.page_number != null ? `?page=${correction.page_number}` : ''
+        }`
+      : null;
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white">
-      <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-slate-100 px-4 py-2.5">
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[correction.status] ?? 'bg-slate-100 text-slate-600'}`}
         >
           {t(`corrections.status.${correction.status}`, correction.status)}
         </span>
-        <span className="text-xs text-slate-400">
-          {new Date(correction.created_at).toLocaleString()}
-        </span>
+        {documentTo && (correction.filename || correction.page_number != null) && (
+          <Link
+            to={documentTo}
+            className="min-w-0 truncate text-xs font-medium text-slate-700 hover:text-slate-900 hover:underline"
+          >
+            {t('corrections.where', {
+              file: correction.filename || t('corrections.document'),
+              page: correction.page_number ?? '—',
+            })}
+          </Link>
+        )}
+        <span className="text-xs text-slate-400">{new Date(correction.created_at).toLocaleString()}</span>
         {correction.region_index != null && (
           <span className="text-xs text-slate-400">
             {t('corrections.region', { index: correction.region_index + 1 })}
@@ -74,31 +116,35 @@ function CorrectionCard({
             </button>
           </span>
         )}
+        {documentTo && !(canAdmin && correction.status === 'submitted') && (
+          <Link
+            to={documentTo}
+            className="ml-auto text-xs text-slate-500 hover:text-slate-800 hover:underline"
+          >
+            {t('corrections.openDocument')}
+          </Link>
+        )}
       </div>
 
-      <div className="divide-y divide-slate-50 px-4 py-2">
+      <div className="divide-y divide-slate-50 px-4 py-1">
         {changes.length === 0 && (
           <p className="py-2 text-xs text-slate-400">{t('corrections.noChanges')}</p>
         )}
-        {changes.map((change, i) => (
-          <div key={i} className="flex gap-3 py-1.5 text-sm">
-            <div className="min-w-0 flex-1">
-              {change.old && (
-                <span className="inline rounded bg-red-50 px-1.5 py-0.5 text-red-700 line-through">
-                  {change.old}
-                </span>
-              )}
-            </div>
-            <span className="shrink-0 text-slate-300">→</span>
-            <div className="min-w-0 flex-1">
-              {change.new && (
-                <span className="inline rounded bg-green-50 px-1.5 py-0.5 text-green-700">
-                  {change.new}
-                </span>
-              )}
-            </div>
+        {visible.map((change, i) => (
+          <div key={i} className="py-2">
+            {(change.column || change.row != null || change.kind === 'cell') && (
+              <p className="mb-1 text-[11px] font-medium tracking-wide text-slate-400">
+                {change.kind === 'cell' ? t('corrections.changedCell') : t('corrections.changedLine')}
+                {change.column ? ` · ${change.column}` : ''}
+                {change.row != null ? ` · ${t('corrections.row', { n: change.row })}` : ''}
+              </p>
+            )}
+            <ChangeSnippet change={change} />
           </div>
         ))}
+        {hiddenCount > 0 && (
+          <p className="py-2 text-xs text-slate-400">{t('corrections.moreChanges', { count: hiddenCount })}</p>
+        )}
       </div>
     </div>
   );

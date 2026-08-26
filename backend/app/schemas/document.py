@@ -89,6 +89,9 @@ class CorrectionOut(BaseModel):
     region_index: int | None
     status: str
     created_at: datetime
+    document_id: uuid.UUID | None = None
+    filename: str | None = None
+    page_number: int | None = None
 
     model_config = {"from_attributes": True}
 
