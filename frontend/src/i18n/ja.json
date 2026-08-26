@@ -137,6 +137,9 @@
       "add": "会社登録",
       "name": "会社名",
       "slug": "識別子",
+      "slugPlaceholder": "sonasu",
+      "slugHint": "識別子は英小文字・数字・ハイフンです。会社名から自動入力されます（変更できます）。",
+      "slugTaken": "この識別子は既に使われています。別の値を指定してください。",
       "status": "状態",
       "addAdmin": "管理者を発行",
       "adminEmailHint": "会社管理者は Sonasu 用ログインとは別のメールアドレスにしてください。",
@@ -154,6 +157,7 @@
       "deactivate": "無効化",
       "activate": "有効化",
       "confirmDelete": "{{email}} を削除しますか？このアカウントではログインできなくなります。",
+      "confirmDeleteCompany": "会社「{{name}}」と、その文書・ユーザーをすべて削除しますか？",
       "adminStatus": { "active": "有効", "disabled": "無効" }
     },
     "training": { "title": "学習実行履歴", "trigger": "学習を実行", "status": "状態", "started": "開始", "finished": "終了", "activate": "適用", "rollback": "ロールバック" }

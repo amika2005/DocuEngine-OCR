@@ -5,6 +5,22 @@ import { ApiError, api } from '../../api/client';
 import { useLiveInvalidate } from '../../api/useEvents';
 import type { Company, User } from '../../api/types';
 
+function makeSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, '-')
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 63);
+}
+
+function slugOrFallback(value: string): string {
+  const slug = makeSlug(value);
+  return slug.length >= 2 ? slug : `c-${Date.now().toString(36)}`;
+}
+
 function AdminList({ companyId }: { companyId: string }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -115,11 +131,14 @@ export default function CompaniesPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: '', slug: '' });
+  const [slugTouched, setSlugTouched] = useState(false);
   const [adminTarget, setAdminTarget] = useState<Company | null>(null);
   const [adminForm, setAdminForm] = useState({ email: '', display_name: '', password: '' });
   const [issued, setIssued] = useState<User | null>(null);
   const [error, setError] = useState('');
+  const [createError, setCreateError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [createBusy, setCreateBusy] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: companies } = useQuery({
@@ -130,9 +149,41 @@ export default function CompaniesPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
-    await api('/admin/companies', { method: 'POST', body: JSON.stringify(form) });
-    setForm({ name: '', slug: '' });
-    queryClient.invalidateQueries({ queryKey: ['companies'] });
+    setCreateError('');
+    setCreateBusy(true);
+    const slug = slugOrFallback(form.slug || form.name);
+    try {
+      await api('/admin/companies', {
+        method: 'POST',
+        body: JSON.stringify({ name: form.name.trim(), slug }),
+      });
+      setForm({ name: '', slug: '' });
+      setSlugTouched(false);
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+    } catch (err) {
+      const detail = err instanceof ApiError ? err.message : String(err);
+      setCreateError(
+        err instanceof ApiError && (err.status === 409 || detail.toLowerCase().includes('slug'))
+          ? t('admin.companies.slugTaken')
+          : detail,
+      );
+    } finally {
+      setCreateBusy(false);
+    }
+  }
+
+  async function removeCompany(company: Company) {
+    if (!window.confirm(t('admin.companies.confirmDeleteCompany', { name: company.name }))) return;
+    setCreateError('');
+    try {
+      await api(`/admin/companies/${company.id}`, { method: 'DELETE' });
+      if (openId === company.id) setOpenId(null);
+      if (adminTarget?.id === company.id) setAdminTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+    } catch (err) {
+      const detail = err instanceof ApiError ? err.message : String(err);
+      setCreateError(detail);
+    }
   }
 
   async function onCreateAdmin(event: FormEvent) {
@@ -163,25 +214,42 @@ export default function CompaniesPage() {
     <div>
       <h1 className="mb-4 text-xl font-bold">{t('admin.companies.title')}</h1>
 
-      <form onSubmit={onCreate} className="mb-4 flex gap-2 text-sm">
-        <input
-          required
-          placeholder={t('admin.companies.name')}
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="w-64 rounded border border-slate-300 px-3 py-1.5"
-        />
-        <input
-          required
-          placeholder={t('admin.companies.slug')}
-          pattern="[a-z0-9][a-z0-9-]{1,62}"
-          value={form.slug}
-          onChange={(e) => setForm({ ...form, slug: e.target.value })}
-          className="w-48 rounded border border-slate-300 px-3 py-1.5"
-        />
-        <button type="submit" className="rounded bg-slate-900 px-4 py-1.5 text-white hover:bg-slate-700">
+      <form onSubmit={onCreate} className="mb-4 flex flex-wrap items-end gap-2 text-sm">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-slate-500">{t('admin.companies.name')}</span>
+          <input
+            required
+            placeholder={t('admin.companies.name')}
+            value={form.name}
+            onChange={(e) => {
+              const name = e.target.value;
+              setForm({ name, slug: slugTouched ? form.slug : makeSlug(name) });
+            }}
+            className="w-64 rounded border border-slate-300 px-3 py-1.5"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-slate-500">{t('admin.companies.slug')}</span>
+          <input
+            required
+            placeholder={t('admin.companies.slugPlaceholder')}
+            value={form.slug}
+            onChange={(e) => {
+              setSlugTouched(true);
+              setForm({ ...form, slug: e.target.value.toLowerCase() });
+            }}
+            className="w-48 rounded border border-slate-300 px-3 py-1.5 font-mono text-xs"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={createBusy}
+          className="cursor-pointer rounded bg-slate-900 px-4 py-1.5 text-white hover:bg-slate-700 disabled:opacity-50"
+        >
           {t('admin.companies.add')}
         </button>
+        <p className="basis-full text-xs text-slate-500">{t('admin.companies.slugHint')}</p>
+        {createError && <p className="basis-full text-sm text-red-600">{createError}</p>}
       </form>
 
       {issued && (
@@ -240,6 +308,13 @@ export default function CompaniesPage() {
                       className="cursor-pointer text-xs text-blue-700 hover:underline"
                     >
                       {t('admin.companies.addAdmin')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeCompany(company)}
+                      className="ml-3 cursor-pointer text-xs text-red-700 hover:underline"
+                    >
+                      {t('common.delete')}
                     </button>
                   </td>
                 </tr>

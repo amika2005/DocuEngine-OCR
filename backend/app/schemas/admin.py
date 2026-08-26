@@ -1,16 +1,38 @@
+import re
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+def normalize_company_slug(value: str) -> str:
+    slug = value.strip().lower().replace("_", "-")
+    slug = re.sub(r"[^a-z0-9-]+", "-", slug)
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")
+    return slug
 
 
 class CompanyCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=255)
     name_kana: str | None = None
-    slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")
+    slug: str = Field(min_length=2, max_length=63)
     max_users: int = 50
     max_devices: int = 10
     settings: dict = Field(default_factory=dict)
+
+    @field_validator("slug", mode="before")
+    @classmethod
+    def _normalize_slug(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        return normalize_company_slug(value)
+
+    @field_validator("slug")
+    @classmethod
+    def _slug_shape(cls, value: str) -> str:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", value):
+            raise ValueError("Slug must be lowercase letters, numbers, and hyphens")
+        return value
 
 
 class CompanyUpdate(BaseModel):

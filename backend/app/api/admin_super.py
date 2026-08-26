@@ -89,8 +89,29 @@ def create_company(
     log_action(db, "company.create", actor_user_id=admin.id, target_type="company",
                target_id=str(company.id), detail={"name": company.name})
     db.commit()
+    db.refresh(company)
     publish_event(company.id, "company.created", {"name": company.name})
     return serialize_company(company, 0)
+
+
+@router.delete("/companies/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_company(
+    company_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+):
+    company = _get_company(db, company_id)
+    log_action(
+        db,
+        "company.delete",
+        actor_user_id=admin.id,
+        target_type="company",
+        target_id=str(company.id),
+        detail={"name": company.name, "slug": company.slug},
+    )
+    db.delete(company)
+    db.commit()
+    publish_event(company_id, "company.deleted", {"id": str(company_id)})
 
 
 @router.get("/companies/{company_id}", response_model=CompanyOut)

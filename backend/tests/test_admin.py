@@ -168,3 +168,40 @@ def test_super_admin_deactivates_and_deletes_company_admin(client, auth, seed):
         ).status_code
         == 401
     )
+
+
+def test_super_admin_normalizes_slug_and_deletes_company(client, auth, seed):
+    created = client.post(
+        "/api/v1/admin/companies",
+        headers=auth("super"),
+        json={"name": "株式会社イプシロン", "slug": "Epsilon Co"},
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["slug"] == "epsilon-co"
+    company_id = body["id"]
+
+    listed = client.get("/api/v1/admin/companies", headers=auth("super")).json()
+    assert any(item["id"] == company_id for item in listed)
+
+    deleted = client.delete(
+        f"/api/v1/admin/companies/{company_id}",
+        headers=auth("super"),
+    )
+    assert deleted.status_code == 204
+    assert (
+        client.get(
+            f"/api/v1/admin/companies/{company_id}",
+            headers=auth("super"),
+        ).status_code
+        == 404
+    )
+    remaining = client.get("/api/v1/admin/companies", headers=auth("super")).json()
+    assert all(item["id"] != company_id for item in remaining)
+    assert (
+        client.delete(
+            f"/api/v1/admin/companies/{company_id}",
+            headers=auth("admin_a"),
+        ).status_code
+        == 403
+    )

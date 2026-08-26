@@ -137,6 +137,9 @@
       "add": "Add company",
       "name": "Company name",
       "slug": "Slug",
+      "slugPlaceholder": "sonasu",
+      "slugHint": "Identifier: lowercase letters, numbers, hyphens. Filled in from the name — you can edit it.",
+      "slugTaken": "That identifier is already in use. Pick a different slug.",
       "status": "Status",
       "addAdmin": "Issue admin login",
       "adminEmailHint": "Use a different email than the Sonasu super-admin login.",
@@ -154,6 +157,7 @@
       "deactivate": "Deactivate",
       "activate": "Activate",
       "confirmDelete": "Delete {{email}}? They will no longer be able to sign in.",
+      "confirmDeleteCompany": "Delete company \"{{name}}\" and all of its documents and users?",
       "adminStatus": { "active": "Active", "disabled": "Deactivated" }
     },
     "training": { "title": "Training runs", "trigger": "Start training", "status": "Status", "started": "Started", "finished": "Finished", "activate": "Activate", "rollback": "Roll back" }
